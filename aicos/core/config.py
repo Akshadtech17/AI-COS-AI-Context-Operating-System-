@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +29,13 @@ class AICOSConfig(BaseSettings):
 
     # ── Database ────────────────────────────────────────────────────────────
     db_path: str = Field("~/.aicos/aicos.db")
+    # Set DATABASE_URL to use PostgreSQL (e.g. postgresql+asyncpg://user:pw@host/db)
+    # Leave unset to use SQLite (split into separate files under db_path directory)
+    database_url: str | None = Field(None)
+
+    # ── Secrets ─────────────────────────────────────────────────────────────
+    # Docker secrets dir: each file named like the env var (e.g. OPENAI_API_KEY)
+    secrets_dir: str | None = Field(None)
 
     # ── Gateway ─────────────────────────────────────────────────────────────
     gateway_host: str = Field("0.0.0.0")
@@ -73,6 +79,10 @@ class AICOSConfig(BaseSettings):
     rate_limit_enabled: bool = Field(True)
     rate_limit_rpm: int = Field(60, ge=1)
 
+    # ── Circuit Breaker ──────────────────────────────────────────────────────
+    circuit_breaker_failure_threshold: int = Field(5, ge=1)
+    circuit_breaker_recovery_timeout: float = Field(30.0, ge=1.0)
+
     # ── Logging ──────────────────────────────────────────────────────────────
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field("INFO")
     log_json: bool = Field(False)
@@ -90,11 +100,59 @@ class AICOSConfig(BaseSettings):
     def expand_db_path(cls, v: str) -> str:
         return str(Path(v).expanduser().resolve())
 
+    @model_validator(mode="after")
+    def _load_docker_secrets(self) -> "AICOSConfig":
+        """
+        Read API keys from Docker secrets directory (one file per secret).
+
+        Files are named exactly like the env var they correspond to,
+        e.g. /run/secrets/OPENAI_API_KEY.  Only overrides if the current
+        value is unset — env vars always take precedence.
+        """
+        secrets_path = Path(self.secrets_dir) if self.secrets_dir else Path("/run/secrets")
+        if not secrets_path.is_dir():
+            return self
+
+        _secret_fields = {
+            "OPENAI_API_KEY": "openai_api_key",
+            "ANTHROPIC_API_KEY": "anthropic_api_key",
+            "GEMINI_API_KEY": "gemini_api_key",
+            "OPENROUTER_API_KEY": "openrouter_api_key",
+            "NVIDIA_API_KEY": "nvidia_api_key",
+            "AICOS_GATEWAY_API_KEY": "gateway_api_key",
+            "DATABASE_URL": "database_url",
+        }
+        for filename, field_name in _secret_fields.items():
+            secret_file = secrets_path / filename
+            if secret_file.is_file() and not getattr(self, field_name):
+                object.__setattr__(self, field_name, secret_file.read_text().strip())
+
+        return self
+
     @field_validator("litm_threshold_tokens", mode="after")
     @classmethod
     def litm_below_max(cls, v: int, info: object) -> int:
         # Ensure LITM threshold is below max context
         return v
+
+    def get_db_urls(self) -> dict[str, str]:
+        """Return per-component database URLs.
+
+        PostgreSQL: all components share one database (different tables).
+        SQLite: separate files per component, WAL mode via build_engine().
+        """
+        if self.database_url:
+            url = self.database_url
+            return {"cache": url, "memory": url, "cost": url, "keys": url}
+
+        db_dir = self.get_resolved_db_path().parent
+        db_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "cache": f"sqlite+aiosqlite:///{db_dir}/cache.db",
+            "memory": f"sqlite+aiosqlite:///{db_dir}/memory.db",
+            "cost": f"sqlite+aiosqlite:///{db_dir}/cost.db",
+            "keys": f"sqlite+aiosqlite:///{db_dir}/keys.db",
+        }
 
     def get_resolved_db_path(self) -> Path:
         p = Path(self.db_path)

@@ -16,10 +16,11 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Boolean, Float, Integer, String, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from aicos.analytics.metrics import get_metrics
+from aicos.core.database import build_engine
 from aicos.core.router import MODEL_REGISTRY
 
 
@@ -63,26 +64,22 @@ class CostTracker:
     in-memory-only mode (tests, CLI).
     """
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(self, database_url: str | None = None) -> None:
         self._session_cost: float = 0.0
         self._session_tokens_in: int = 0
         self._session_tokens_out: int = 0
         self._session_requests: int = 0
         self._session_start: float = time.time()
         self._records: list[CostRecord] = []
-        self._db_path = db_path
+        self._database_url = database_url
         self._engine: Any = None
         self._session_factory: Any = None
 
     async def initialize(self) -> None:
         """Create the cost_records table and load historical data. Call once at startup."""
-        if not self._db_path:
+        if not self._database_url:
             return
-        self._engine = create_async_engine(
-            f"sqlite+aiosqlite:///{self._db_path}",
-            echo=False,
-            pool_pre_ping=True,
-        )
+        self._engine = build_engine(self._database_url)
         async with self._engine.begin() as conn:
             await conn.run_sync(_CostBase.metadata.create_all)
 

@@ -1,3 +1,6 @@
+# AI-COS — single-node development compose
+# For production, use docker-compose.prod.yml
+
 services:
   aicos:
     build: .

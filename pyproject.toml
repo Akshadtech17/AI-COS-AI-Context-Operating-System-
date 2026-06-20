@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aicos"
-version = "0.3.0"
+version = "0.4.0"
 description = "The operating system between applications and AI"
 readme = "README.md"
 license = { text = "MIT" }
@@ -54,10 +54,11 @@ dependencies = [
     "cachetools>=5.5.0",
     "orjson>=3.10.0",
     "python-multipart>=0.0.17",
-    "slowapi>=0.1.9",
+    # Removed: slowapi (replaced by custom Redis-backed rate limiter)
 ]
 
 [project.optional-dependencies]
+postgres = ["asyncpg>=0.30.0"]
 redis = ["redis>=5.2.0", "hiredis>=3.1.0"]
 vector = ["chromadb>=0.5.0", "faiss-cpu>=1.9.0"]
 embeddings = ["sentence-transformers>=3.3.0"]
@@ -71,7 +72,7 @@ dev = [
     "mypy>=1.13.0",
     "pre-commit>=4.0.0",
 ]
-all = ["aicos[redis,vector,embeddings,dev]"]
+all = ["aicos[postgres,redis,vector,embeddings,dev]"]
 
 [project.scripts]
 aicos = "aicos.cli.main:app"

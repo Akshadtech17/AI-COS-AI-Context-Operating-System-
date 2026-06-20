@@ -16,8 +16,10 @@ from typing import Any
 
 import numpy as np
 from sqlalchemy import String, Float, Integer, Text, DateTime, Index, select, func, delete
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from aicos.core.database import build_engine
 
 
 class Base(DeclarativeBase):
@@ -79,19 +81,13 @@ class CacheEntry:
 class SQLiteCache:
     def __init__(
         self,
-        db_path: str | Path,
+        database_url: str,
         max_size: int = 10_000,
         ttl_seconds: int = 86400,
     ) -> None:
-        self._db_path = Path(db_path)
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._max_size = max_size
         self._ttl_seconds = ttl_seconds
-        self._engine = create_async_engine(
-            f"sqlite+aiosqlite:///{self._db_path}",
-            echo=False,
-            connect_args={"check_same_thread": False},
-        )
+        self._engine = build_engine(database_url)
         self._session_factory = async_sessionmaker(
             self._engine, expire_on_commit=False
         )
@@ -99,13 +95,6 @@ class SQLiteCache:
     async def initialize(self) -> None:
         async with self._engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            # Enable WAL mode for concurrent read/write performance
-            await conn.execute(
-                __import__("sqlalchemy").text("PRAGMA journal_mode=WAL")
-            )
-            await conn.execute(
-                __import__("sqlalchemy").text("PRAGMA synchronous=NORMAL")
-            )
 
     @staticmethod
     def make_key(prompt: str, context_hash: str = "") -> str:

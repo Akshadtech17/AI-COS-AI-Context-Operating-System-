@@ -59,7 +59,7 @@ class AI:
             return
 
         cfg = self._config
-        db_path = cfg.get_resolved_db_path()
+        db_urls = cfg.get_db_urls()
 
         # Build providers
         providers = self._build_providers()
@@ -69,7 +69,7 @@ class AI:
 
         # Cache
         sqlite_cache = SQLiteCache(
-            db_path=db_path.parent / "cache.db",
+            database_url=db_urls["cache"],
             max_size=cfg.cache_max_size,
             ttl_seconds=cfg.cache_ttl_seconds,
         )
@@ -82,7 +82,7 @@ class AI:
 
         # Memory
         memory_store = MemoryStore(
-            db_path=db_path.parent / "memory.db",
+            database_url=db_urls["memory"],
             embedding_engine=embedding_engine,
             max_items=cfg.memory_max_items,
         )

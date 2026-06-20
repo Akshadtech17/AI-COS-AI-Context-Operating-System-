@@ -5,6 +5,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.0] — 2026-06-20
+
+### Added
+- **PostgreSQL support** — `aicos/core/database.py`: engine factory configures SQLite (WAL mode,
+  `synchronous=NORMAL`, `busy_timeout=5s`) or PostgreSQL (`asyncpg`, pool_size=10, max_overflow=20,
+  pool_recycle=1800s). All 4 stores (cache, memory, cost, keys) now use `build_engine()`.
+  Set `DATABASE_URL=postgresql+asyncpg://...` for multi-worker deployments.
+- **Per-component database URLs** — `AICOSConfig.get_db_urls()`: SQLite mode uses separate files
+  per component; PostgreSQL mode shares one database (different tables). No write contention.
+- **Circuit breaker** — `aicos/core/circuit_breaker.py`: per-provider CLOSED→OPEN→HALF_OPEN state
+  machine. Opens after `AICOS_CIRCUIT_BREAKER_FAILURE_THRESHOLD` (default 5) consecutive failures,
+  probes after `AICOS_CIRCUIT_BREAKER_RECOVERY_TIMEOUT` seconds (default 30). Integrated into both
+  `process()` and `stream()` paths in `AIGateway`. Status visible in `/health` response.
+- **Distributed Redis rate limiting** — `aicos/api/rate_limiter.py`: `RateLimitMiddleware` replaces
+  slowapi. Uses Redis sorted-set sliding window when `AICOS_REDIS_URL` is set (correct across
+  multiple workers); falls back to in-process sliding window for dev. Fails open on Redis errors.
+- **Schema migrations** — `aicos/db/migrations.py`: lightweight versioned migration runner.
+  Tracks applied migrations in `schema_migrations` table. Runs on every startup (idempotent).
+  Safe to add new migrations as numbered async functions without risk of data loss.
+- **Docker secrets** — `AICOSConfig._load_docker_secrets()`: reads API keys from
+  `AICOS_SECRETS_DIR` (default `/run/secrets`) if the directory exists. Files named like env vars
+  (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.). Env vars always take precedence.
+- **TLS/nginx** — `nginx/nginx.conf`: reverse proxy with HTTP→HTTPS redirect, TLS 1.2/1.3,
+  security headers (HSTS, X-Frame-Options, etc.), SSE streaming support, JSON access log.
+- **Production docker-compose** — `docker-compose.prod.yml`: nginx + 4 AI-COS workers +
+  PostgreSQL 16 + Redis 7, all with health checks. Dev single-node in `docker-compose.yml`.
+- **Circuit breaker config** — `AICOS_CIRCUIT_BREAKER_FAILURE_THRESHOLD` and
+  `AICOS_CIRCUIT_BREAKER_RECOVERY_TIMEOUT` env vars.
+- **26 new tests** — circuit breaker state machine (15 tests) and rate limiter (11 tests).
+
+### Changed
+- `SQLiteCache`, `MemoryStore`, `CostTracker`, `APIKeyStore` constructors: `db_path` →
+  `database_url` (string URL). Breaking change for direct instantiation; routes and CLI updated.
+- Removed `slowapi` dependency — replaced by `RateLimitMiddleware`.
+- `aicos/core/ai.py` updated to use `cfg.get_db_urls()`.
+- Version bumped `0.3.0 → 0.4.0`.
+
+### Fixed
+- Multiple workers sharing a SQLite DB now use WAL mode, preventing write-lock contention.
+- Rate limiting now distributes correctly across workers when Redis is configured.
+
+---
+
 ## [0.3.0] — 2026-06-20
 
 ### Added

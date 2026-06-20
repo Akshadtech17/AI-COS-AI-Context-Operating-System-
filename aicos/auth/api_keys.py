@@ -15,11 +15,12 @@ import secrets
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 
 from sqlalchemy import Boolean, Float, Integer, String, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from aicos.core.database import build_engine
 
 
 class _Base(DeclarativeBase):
@@ -58,12 +59,8 @@ class APIKeyStore:
     if lost, the key must be revoked and replaced.
     """
 
-    def __init__(self, db_path: Path) -> None:
-        self._engine = create_async_engine(
-            f"sqlite+aiosqlite:///{db_path}",
-            echo=False,
-            pool_pre_ping=True,
-        )
+    def __init__(self, database_url: str) -> None:
+        self._engine = build_engine(database_url)
         self._sessions = async_sessionmaker(self._engine, expire_on_commit=False)
 
     async def initialize(self) -> None:

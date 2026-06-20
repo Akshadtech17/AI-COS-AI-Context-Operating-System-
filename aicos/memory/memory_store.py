@@ -17,9 +17,10 @@ from typing import Any
 
 import numpy as np
 from sqlalchemy import String, Float, Integer, Text, DateTime, select, func, delete
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from aicos.core.database import build_engine
 from aicos.memory.embeddings import EmbeddingEngine
 
 
@@ -71,18 +72,13 @@ class MemoryStore:
 
     def __init__(
         self,
-        db_path: str | Path,
+        database_url: str,
         embedding_engine: EmbeddingEngine | None = None,
         max_items: int = 10_000,
     ) -> None:
-        self._db_path = Path(db_path)
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._embedding_engine = embedding_engine or EmbeddingEngine()
         self._max_items = max_items
-        self._engine = create_async_engine(
-            f"sqlite+aiosqlite:///{self._db_path}",
-            echo=False,
-        )
+        self._engine = build_engine(database_url)
         self._session_factory = async_sessionmaker(
             self._engine, expire_on_commit=False
         )

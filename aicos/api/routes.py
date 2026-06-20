@@ -29,23 +29,21 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
 
 _DASHBOARD_HTML = Path(__file__).parent / "templates" / "dashboard.html"
-_VERSION = "0.3.0"
+_VERSION = "0.4.0"
 
 from aicos.analytics.cost_tracker import CostTracker
 from aicos.analytics.metrics import get_metrics
 from aicos.api.middleware import RequestIDMiddleware
+from aicos.api.rate_limiter import RateLimitMiddleware
 from aicos.auth.api_keys import APIKey, APIKeyStore
 from aicos.cache.semantic_cache import SemanticCache
 from aicos.cache.sqlite_cache import SQLiteCache
 from aicos.context.compressor import ContextCompressor
 from aicos.context.history_manager import HistoryManager
+from aicos.core.circuit_breaker import CircuitBreakerRegistry
 from aicos.core.config import AICOSConfig, get_config
 from aicos.core.gateway import AIGateway, GatewayRequest
 from aicos.core.logging import configure_logging, get_logger
@@ -124,11 +122,11 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
             base_url="https://integrate.api.nvidia.com/v1",
         )
 
-    db_path = cfg.get_resolved_db_path()
+    db_urls = cfg.get_db_urls()
     embedding_engine = EmbeddingEngine()
 
     sqlite_cache = SQLiteCache(
-        db_path=db_path.parent / "cache.db",
+        database_url=db_urls["cache"],
         max_size=cfg.cache_max_size,
         ttl_seconds=cfg.cache_ttl_seconds,
     )
@@ -141,7 +139,7 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
     )
 
     memory_store = MemoryStore(
-        db_path=db_path.parent / "memory.db",
+        database_url=db_urls["memory"],
         embedding_engine=embedding_engine,
         max_items=cfg.memory_max_items,
     )
@@ -162,8 +160,13 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
 
     router = ModelRouter(cfg, embedding_engine=embedding_engine)
 
-    cost_tracker = CostTracker(db_path=db_path.parent / "cost_tracking.db")
+    cost_tracker = CostTracker(database_url=db_urls["cost"])
     await cost_tracker.initialize()
+
+    circuit_breakers = CircuitBreakerRegistry(
+        failure_threshold=cfg.circuit_breaker_failure_threshold,
+        recovery_timeout=cfg.circuit_breaker_recovery_timeout,
+    )
 
     gateway = AIGateway(
         config=cfg,
@@ -173,6 +176,7 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
         memory_retriever=memory_retriever if cfg.memory_enabled else None,
         history_manager=history_manager if cfg.context_compression_enabled else None,
         cost_tracker=cost_tracker,
+        circuit_breakers=circuit_breakers,
     )
 
     log.info(
@@ -181,7 +185,7 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
             "providers": list(providers.keys()),
             "cache": cfg.cache_enabled,
             "memory": cfg.memory_enabled,
-            "compression": cfg.context_compression_enabled,
+            "db_mode": "postgresql" if cfg.database_url else "sqlite+wal",
         },
     )
 
@@ -199,10 +203,18 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         global _gateway, _memory_store, _key_store
 
+        from aicos.core.database import build_engine
+        from aicos.db.migrations import run_migrations
+
+        # Run schema migrations before anything else opens connections
+        db_urls = cfg.get_db_urls()
+        _migration_engine = build_engine(db_urls["keys"])
+        await run_migrations(_migration_engine)
+        await _migration_engine.dispose()
+
         _gateway, _memory_store = await _build_gateway(cfg)
 
-        db_path = cfg.get_resolved_db_path()
-        _key_store = APIKeyStore(db_path.parent / "api_keys.db")
+        _key_store = APIKeyStore(database_url=db_urls["keys"])
         await _key_store.initialize()
 
         log.info("AI-COS gateway started", extra={"version": _VERSION})
@@ -219,9 +231,6 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
         _key_store = None
         log.info("AI-COS gateway stopped")
 
-    limiter = Limiter(key_func=get_remote_address)
-    rate_limit_str = f"{cfg.rate_limit_rpm}/minute" if cfg.rate_limit_enabled else "100000/minute"
-
     _NVIDIA_FAVICON = "https://www.nvidia.com/favicon.ico"
 
     app = FastAPI(
@@ -233,9 +242,12 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
     )
 
     # ── Middleware (order matters: outermost runs first) ──────────────────
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIMiddleware)
+    app.add_middleware(
+        RateLimitMiddleware,
+        rpm=cfg.rate_limit_rpm,
+        enabled=cfg.rate_limit_enabled,
+        redis_url=cfg.redis_url,
+    )
     app.add_middleware(RequestIDMiddleware)
 
     _wildcard_cors = cfg.cors_allowed_origins == ["*"]
@@ -338,12 +350,18 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
         any_ok = any(v == "ok" for v in provider_health.values())
         status = "ok" if (any_ok or not provider_health) else "degraded"
 
+        circuit_status = (
+            gw._breakers.all_status() if gw and hasattr(gw, "_breakers") else []
+        )
+
         return {
             "status": status,
             "version": _VERSION,
             "providers": provider_health,
+            "circuits": circuit_status,
             "cache_enabled": cfg.cache_enabled,
             "memory_enabled": cfg.memory_enabled,
+            "db_mode": "postgresql" if cfg.database_url else "sqlite+wal",
         }
 
     @app.get("/metrics")
@@ -360,7 +378,6 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
     # ── Chat Completions ──────────────────────────────────────────────────
 
     @app.post("/v1/chat/completions")
-    @limiter.limit(rate_limit_str)
     async def chat_completions(
         request: Request,
         body: ChatCompletionRequest,

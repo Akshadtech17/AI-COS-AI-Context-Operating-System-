@@ -1,0 +1,88 @@
+# AI-COS — production compose
+#
+# Features:
+#   - nginx TLS termination (edit nginx/nginx.conf with your domain)
+#   - PostgreSQL for all persistence (WAL, concurrent-safe)
+#   - Redis for distributed rate limiting
+#   - 4 AI-COS workers behind nginx
+#
+# Quick start:
+#   1. Copy .env.example → .env and fill in your API keys
+#   2. Set DATABASE_URL=postgresql+asyncpg://aicos:change-me@postgres:5432/aicos
+#   3. Set AICOS_REDIS_URL=redis://redis:6379/0
+#   4. Place TLS certs or update nginx.conf for Let's Encrypt
+#   5. docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # ── nginx reverse proxy ────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Mount Let's Encrypt certs here:
+      # - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - aicos
+    restart: unless-stopped
+
+  # ── AI-COS gateway (4 workers) ────────────────────────────────────────
+  aicos:
+    build: .
+    command: uvicorn aicos.api.app:app --host 0.0.0.0 --port 4000 --workers 4
+    expose:
+      - "4000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://aicos:${POSTGRES_PASSWORD:-change-me}@postgres:5432/aicos
+      - AICOS_REDIS_URL=redis://redis:6379/0
+      - AICOS_LOG_JSON=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      replicas: 1  # docker compose doesn't scale with this; use --scale instead
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aicos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: aicos
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aicos"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+  redis-data:

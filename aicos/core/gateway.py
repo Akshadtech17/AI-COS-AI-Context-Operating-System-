@@ -20,6 +20,7 @@ from aicos.analytics.metrics import get_metrics
 from aicos.cache.semantic_cache import SemanticCache
 from aicos.context.compressor import ContextCompressor, count_message_tokens
 from aicos.context.history_manager import HistoryManager
+from aicos.core.circuit_breaker import CircuitBreakerRegistry
 from aicos.core.config import AICOSConfig
 from aicos.core.logging import get_logger, set_session_id
 from aicos.core.router import ModelRouter, RoutingDecision
@@ -76,6 +77,7 @@ class AIGateway:
         memory_retriever: MemoryRetriever | None = None,
         history_manager: HistoryManager | None = None,
         cost_tracker: CostTracker | None = None,
+        circuit_breakers: CircuitBreakerRegistry | None = None,
     ) -> None:
         self._config = config
         self._router = router
@@ -84,6 +86,7 @@ class AIGateway:
         self._memory = memory_retriever
         self._history = history_manager
         self._cost_tracker = cost_tracker or CostTracker()
+        self._breakers = circuit_breakers or CircuitBreakerRegistry()
         self._compressor = ContextCompressor(
             max_tokens=config.max_context_tokens,
             model="gpt-4o-mini",
@@ -241,6 +244,18 @@ class AIGateway:
             if not provider:
                 continue
 
+            breaker = self._breakers.get(spec.provider)
+            if not breaker.can_attempt():
+                log.warning(
+                    "Circuit open — skipping provider",
+                    extra={"provider": spec.provider, "model": model_attempt},
+                )
+                if model_attempt == models_to_try[-1]:
+                    raise RuntimeError(
+                        f"All providers circuit-open or failed. Last: {spec.provider}"
+                    )
+                continue
+
             log.info(
                 "LLM call",
                 extra={"provider": spec.provider, "model": model_attempt},
@@ -253,15 +268,18 @@ class AIGateway:
                     temperature=request.temperature,
                     **request.extra,
                 )
+                breaker.record_success()
                 used_model = model_attempt
                 used_provider = spec.provider
                 break
             except Exception as e:
+                breaker.record_failure()
                 log.warning(
                     "Provider failed, trying fallback",
                     extra={
                         "provider": spec.provider,
                         "model": model_attempt,
+                        "circuit_state": breaker.state.value,
                         "error": str(e),
                     },
                 )
@@ -395,6 +413,12 @@ class AIGateway:
             if not provider:
                 continue
 
+            breaker = self._breakers.get(spec.provider)
+            if not breaker.can_attempt():
+                if model_attempt == models_to_try[-1]:
+                    raise RuntimeError(f"All providers circuit-open. Last: {spec.provider}")
+                continue
+
             try:
                 async for chunk in provider.stream(
                     messages=messages,
@@ -409,8 +433,10 @@ class AIGateway:
                     if chunk.output_tokens:
                         final_output_tokens = chunk.output_tokens
                     yield chunk
+                breaker.record_success()
                 break
             except Exception:
+                breaker.record_failure()
                 if model_attempt == models_to_try[-1]:
                     raise
                 continue

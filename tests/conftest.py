@@ -98,7 +98,7 @@ def embedding_engine() -> EmbeddingEngine:
 
 @pytest_asyncio.fixture
 async def sqlite_cache(tmp_dir: Path) -> AsyncIterator[SQLiteCache]:
-    cache = SQLiteCache(db_path=tmp_dir / "cache.db", max_size=100)
+    cache = SQLiteCache(database_url=f"sqlite+aiosqlite:///{tmp_dir}/cache.db", max_size=100)
     await cache.initialize()
     yield cache
     await cache.close()
@@ -118,7 +118,7 @@ async def semantic_cache(sqlite_cache: SQLiteCache, embedding_engine: EmbeddingE
 @pytest_asyncio.fixture
 async def memory_store(tmp_dir: Path, embedding_engine: EmbeddingEngine) -> AsyncIterator[MemoryStore]:
     store = MemoryStore(
-        db_path=tmp_dir / "memory.db",
+        database_url=f"sqlite+aiosqlite:///{tmp_dir}/memory.db",
         embedding_engine=embedding_engine,
         max_items=100,
     )
