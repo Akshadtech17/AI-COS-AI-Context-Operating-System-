@@ -40,7 +40,9 @@ def mock_prov():
 @pytest.fixture
 def ai(ai_config, mock_prov):
     instance = AI(config=ai_config)
-    instance._build_providers = MagicMock(return_value={"openrouter": mock_prov})
+    instance._build_providers = MagicMock(
+        return_value={"openrouter": mock_prov, "openai": mock_prov}
+    )
     return instance
 
 

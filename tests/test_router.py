@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from aicos.core.config import AICOSConfig
-from aicos.core.router import ModelRouter, TaskType
+from aicos.core.router import EmbeddingTaskClassifier, ModelRouter, TaskType
 
 
 @pytest.fixture
@@ -110,11 +110,15 @@ class TestModelSelection:
 
 class TestCostEstimation:
     def test_known_model_cost(self, router: ModelRouter) -> None:
-        # Nemotron is free
+        # gpt-4o-mini: $0.15/1M input, $0.60/1M output
+        cost = router.estimate_cost("gpt-4o-mini", input_tokens=1000, output_tokens=100)
+        expected = (1000 * 0.15 + 100 * 0.60) / 1_000_000
+        assert abs(cost - expected) < 1e-10
+
+    def test_nemotron_is_free(self, router: ModelRouter) -> None:
         cost = router.estimate_cost(
             "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
-            input_tokens=1000,
-            output_tokens=100,
+            input_tokens=1_000_000, output_tokens=1_000_000,
         )
         assert cost == 0.0
 
@@ -123,9 +127,51 @@ class TestCostEstimation:
         assert cost == 0.0
 
     def test_zero_tokens(self, router: ModelRouter) -> None:
-        cost = router.estimate_cost(
-            "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
-            input_tokens=0,
-            output_tokens=0,
-        )
+        cost = router.estimate_cost("gpt-4o-mini", input_tokens=0, output_tokens=0)
         assert cost == 0.0
+
+
+class TestEmbeddingTaskClassifier:
+    @pytest.fixture
+    def classifier(self) -> EmbeddingTaskClassifier:
+        from aicos.memory.embeddings import EmbeddingEngine
+        return EmbeddingTaskClassifier(EmbeddingEngine())
+
+    def test_coding_classified(self, classifier: EmbeddingTaskClassifier) -> None:
+        task = classifier.classify("def fibonacci(n): write this function")
+        assert task == TaskType.CODING
+
+    def test_reasoning_classified(self, classifier: EmbeddingTaskClassifier) -> None:
+        task = classifier.classify("analyze the trade-offs between microservices and monolith")
+        assert task == TaskType.REASONING
+
+    def test_creative_classified(self, classifier: EmbeddingTaskClassifier) -> None:
+        task = classifier.classify("write a short story about a robot")
+        assert task == TaskType.CREATIVE
+
+    def test_returns_task_type(self, classifier: EmbeddingTaskClassifier) -> None:
+        result = classifier.classify("some generic text")
+        assert isinstance(result, TaskType)
+
+
+class TestFastestStrategy:
+    def test_fastest_selects_lowest_latency(self, config: AICOSConfig) -> None:
+        config.router_strategy = "fastest"
+        router = ModelRouter(config)
+        decision = router.select_model([{"role": "user", "content": "Hello"}])
+        assert decision.model is not None
+
+    def test_best_strategy(self, config: AICOSConfig) -> None:
+        config.router_strategy = "best"
+        router = ModelRouter(config)
+        decision = router.select_model([{"role": "user", "content": "Hello"}])
+        assert decision.model is not None
+
+    def test_auto_strategy_coding(self, config: AICOSConfig) -> None:
+        config.router_strategy = "auto"
+        router = ModelRouter(config)
+        decision = router.select_model(
+            [{"role": "user", "content": "def my_func(): write a Python function"}],
+            task_type=TaskType.CODING,
+        )
+        assert decision.task_type == TaskType.CODING

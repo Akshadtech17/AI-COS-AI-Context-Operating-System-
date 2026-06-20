@@ -20,11 +20,15 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Optional
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
+
+_DASHBOARD_HTML = Path(__file__).parent / "templates" / "dashboard.html"
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -141,7 +145,7 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
         litm_threshold_tokens=cfg.litm_threshold_tokens,
     )
 
-    router = ModelRouter(cfg)
+    router = ModelRouter(cfg, embedding_engine=embedding_engine)
     gateway = AIGateway(
         config=cfg,
         router=router,
@@ -193,6 +197,11 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
             title="AI-COS Gateway",
             swagger_favicon_url=_NVIDIA_FAVICON,
         )
+
+    @app.get("/", include_in_schema=False)
+    @app.get("/dashboard", include_in_schema=False)
+    async def dashboard() -> FileResponse:
+        return FileResponse(_DASHBOARD_HTML)
 
     app.state.limiter = limiter
 

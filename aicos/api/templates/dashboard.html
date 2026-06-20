@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-COS Dashboard</title>
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --green: #76b900;
+      --green-dim: #3d6200;
+      --blue: #388bfd;
+      --red: #f85149;
+      --yellow: #d29922;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+    .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); }
+    .badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 12px;
+      background: var(--green-dim); color: var(--green); font-weight: 600;
+    }
+    .refresh-info { color: var(--muted); font-size: 12px; }
+    #status-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); margin-right: 6px; vertical-align: middle;
+    }
+
+    /* ── Layout ── */
+    main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+    /* ── Stat cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+    .card-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+    .card-value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+    .card-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .green { color: var(--green); }
+    .blue { color: var(--blue); }
+    .yellow { color: var(--yellow); }
+
+    /* ── Two-column grid ── */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } }
+
+    /* ── Panel ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+    .panel h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 14px; }
+
+    /* ── Provider rows ── */
+    .provider-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+    }
+    .provider-row:last-child { border-bottom: none; }
+    .provider-name { font-weight: 500; }
+    .provider-model { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .pill {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600;
+    }
+    .pill-active { background: rgba(118,185,0,.15); color: var(--green); }
+    .pill-inactive { background: rgba(139,148,158,.1); color: var(--muted); }
+
+    /* ── Progress bar ── */
+    .bar-row { margin-bottom: 12px; }
+    .bar-label { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
+    .bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width .5s ease; background: var(--green); }
+    .bar-fill.blue { background: var(--blue); }
+
+    /* ── Task type chart ── */
+    .task-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .task-cell {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px; text-align: center;
+    }
+    .task-cell .t-val { font-size: 18px; font-weight: 700; color: var(--green); }
+    .task-cell .t-name { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Footer ── */
+    footer { text-align: center; padding: 20px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); margin-top: 24px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    AI-COS
+    <span class="badge">v0.2.0</span>
+  </div>
+  <div class="refresh-info">
+    <span id="status-dot"></span>
+    <span id="status-text">Connecting...</span>
+    &nbsp;·&nbsp; auto-refresh 3s
+  </div>
+</header>
+
+<main>
+
+  <!-- Stat cards -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Total Requests</div>
+      <div class="card-value green" id="total-requests">—</div>
+      <div class="card-sub" id="error-count">— errors</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Cache Hit Rate</div>
+      <div class="card-value blue" id="cache-hit-rate">—</div>
+      <div class="card-sub" id="cache-hits">— hits</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Avg Latency</div>
+      <div class="card-value" id="avg-latency">—</div>
+      <div class="card-sub">p95: <span id="p95-latency">—</span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Total Cost</div>
+      <div class="card-value yellow" id="total-cost">—</div>
+      <div class="card-sub">session</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Memories Stored</div>
+      <div class="card-value" id="memories-stored">—</div>
+      <div class="card-sub">long-term</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Tokens Saved</div>
+      <div class="card-value green" id="tokens-saved">—</div>
+      <div class="card-sub">via compression</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+
+    <!-- Providers -->
+    <div class="panel">
+      <h3>Providers</h3>
+      <div id="providers-list">
+        <div class="provider-row">
+          <div>
+            <div class="provider-name">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance bars -->
+    <div class="panel">
+      <h3>Performance</h3>
+      <div class="bar-row">
+        <div class="bar-label">
+          <span>Cache Hit Rate</span>
+          <span id="bar-cache-pct">—</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="bar-cache" style="width:0%"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">
+          <span>Compression Savings</span>
+          <span id="bar-compress-pct">—</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill blue" id="bar-compress" style="width:0%"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">
+          <span>Memory Utilisation</span>
+          <span id="bar-memory-pct">—</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="bar-memory" style="width:0%;background:var(--yellow)"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Task type breakdown -->
+  <div class="panel">
+    <h3>Requests by Task Type</h3>
+    <div class="task-grid" id="task-grid">
+      <div class="task-cell"><div class="t-val">—</div><div class="t-name">simple</div></div>
+      <div class="task-cell"><div class="t-val">—</div><div class="t-name">coding</div></div>
+      <div class="task-cell"><div class="t-val">—</div><div class="t-name">reasoning</div></div>
+      <div class="task-cell"><div class="t-val">—</div><div class="t-name">analysis</div></div>
+      <div class="task-cell"><div class="t-val">—</div><div class="t-name">creative</div></div>
+      <div class="task-cell"><div class="t-val">—</div><div class="t-name">vision</div></div>
+      <div class="task-cell"><div class="t-val">—</div><div class="t-name">agent</div></div>
+      <div class="task-cell"><div class="t-val green" id="total-requests-grid">—</div><div class="t-name">total</div></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>AI-COS · Powered by NVIDIA Nemotron Ultra · <a href="/docs" style="color:var(--green);text-decoration:none;">API Docs</a></footer>
+
+<script>
+  const PROVIDER_MODELS = {
+    openai: "GPT-4o / GPT-4o-mini",
+    anthropic: "Claude Sonnet / Haiku",
+    gemini: "Gemini 2.0 Flash",
+    nvidia: "Nemotron Ultra 253B",
+    openrouter: "Nemotron Ultra 253B",
+    ollama: "Llama 3.2 (local)",
+  };
+
+  function fmt(n) { return n == null ? "—" : Number(n).toLocaleString(); }
+  function fmtMs(n) { return n == null ? "—" : Math.round(n) + "ms"; }
+  function fmtPct(n) { return n == null ? "—" : Number(n).toFixed(1) + "%"; }
+  function fmtCost(n) { return n == null ? "—" : "$" + Number(n).toFixed(4); }
+
+  function setBar(id, pctId, value, max = 100) {
+    const pct = Math.min(100, (value / max) * 100);
+    document.getElementById(id).style.width = pct + "%";
+    document.getElementById(pctId).textContent = fmtPct(value);
+  }
+
+  async function refresh() {
+    try {
+      const [stats, health] = await Promise.all([
+        fetch("/stats").then(r => r.json()),
+        fetch("/health").then(r => r.json()),
+      ]);
+
+      // Status
+      document.getElementById("status-dot").style.background = health.status === "ok" ? "var(--green)" : "var(--red)";
+      document.getElementById("status-text").textContent = health.status === "ok" ? "System healthy" : "Degraded";
+
+      // Cards
+      const reqs = stats.requests || {};
+      const cache = stats.cache || {};
+      const latency = stats.latency || {};
+      const cost = stats.cost || {};
+      const mem = stats.memory || {};
+      const ctx = stats.context || {};
+
+      document.getElementById("total-requests").textContent = fmt(reqs.total);
+      document.getElementById("error-count").textContent = fmt(reqs.errors ?? 0) + " errors";
+      document.getElementById("cache-hit-rate").textContent = fmtPct(cache.hit_rate_pct);
+      document.getElementById("cache-hits").textContent = fmt(cache.hits) + " hits";
+      document.getElementById("avg-latency").textContent = fmtMs(latency.mean_ms);
+      document.getElementById("p95-latency").textContent = fmtMs(latency.p95_ms);
+      document.getElementById("total-cost").textContent = fmtCost(cost.total_usd);
+      document.getElementById("memories-stored").textContent = fmt(mem.total_stored);
+      document.getElementById("tokens-saved").textContent = fmt(ctx.tokens_saved);
+      document.getElementById("total-requests-grid").textContent = fmt(reqs.total);
+
+      // Bars
+      setBar("bar-cache", "bar-cache-pct", cache.hit_rate_pct ?? 0);
+      setBar("bar-compress", "bar-compress-pct", ctx.compression_ratio_pct ?? 0);
+      setBar("bar-memory", "bar-memory-pct", ((mem.total_stored ?? 0) / (mem.max_items ?? 10000)) * 100);
+
+      // Task type breakdown
+      const tasks = reqs.by_task_type || {};
+      const order = ["simple", "coding", "reasoning", "analysis", "creative", "vision", "agent"];
+      const cells = document.querySelectorAll(".task-cell");
+      order.forEach((t, i) => {
+        if (cells[i]) cells[i].querySelector(".t-val").textContent = fmt(tasks[t] ?? 0);
+      });
+
+      // Providers
+      const activeProviders = health.providers || [];
+      const allProviders = ["openai", "anthropic", "gemini", "nvidia", "openrouter", "ollama"];
+      const html = allProviders.map(p => {
+        const active = activeProviders.includes(p);
+        return `<div class="provider-row">
+          <div>
+            <div class="provider-name">${p.charAt(0).toUpperCase() + p.slice(1)}</div>
+            <div class="provider-model">${PROVIDER_MODELS[p] || ""}</div>
+          </div>
+          <span class="pill ${active ? "pill-active" : "pill-inactive"}">${active ? "active" : "not configured"}</span>
+        </div>`;
+      }).join("");
+      document.getElementById("providers-list").innerHTML = html;
+
+    } catch (e) {
+      document.getElementById("status-dot").style.background = "var(--red)";
+      document.getElementById("status-text").textContent = "Gateway offline";
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>

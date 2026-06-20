@@ -99,7 +99,7 @@ class AI:
         compressor = ContextCompressor(
             max_tokens=cfg.max_context_tokens,
         )
-        router = ModelRouter(cfg)
+        router = ModelRouter(cfg, embedding_engine=embedding_engine)
 
         # Build summarizer if we have any provider
         summarizer: ConversationSummarizer | None = None

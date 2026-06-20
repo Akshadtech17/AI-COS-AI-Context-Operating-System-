@@ -43,6 +43,8 @@ class AICOSConfig(BaseSettings):
         default_factory=lambda: [
             "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
             "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+            "gpt-4o-mini",
+            "claude-haiku-4-5-20251001",
         ]
     )
 

@@ -33,10 +33,10 @@ def tmp_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def config(tmp_dir: Path) -> AICOSConfig:
     return AICOSConfig(
-        openrouter_api_key="sk-or-test-key",
-        openai_api_key=None,
+        openai_api_key="sk-test-openai",
         anthropic_api_key=None,
         gemini_api_key=None,
+        openrouter_api_key="sk-or-test-key",
         nvidia_api_key=None,
         db_path=str(tmp_dir / "aicos.db"),
         cache_enabled=True,
@@ -145,7 +145,7 @@ async def gateway(
     return AIGateway(
         config=config,
         router=router,
-        providers={"openrouter": mock_provider},
+        providers={"openai": mock_provider, "openrouter": mock_provider},
         semantic_cache=semantic_cache,
         memory_retriever=memory_retriever,
     )

@@ -1,19 +1,20 @@
 # AI-COS — AI Context Operating System
 
-> **The operating system between applications and AI.**
+> **The middleware layer between your app and any LLM.**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-102%20passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-189%20passing-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-73%25-yellow.svg)]()
 
-AI-COS is a local-first AI infrastructure layer that sits between your applications and LLM providers. It automatically optimizes context, stores memory, caches responses, routes models, and tracks costs — so you don't have to.
+AI-COS is a self-hosted AI infrastructure layer that sits between your applications and LLM providers. It handles model routing, semantic caching, long-term memory, context compression, and observability — so your application code stays clean.
 
 ```python
 from aicos import AI
 
 ai = AI()
 response = ai.chat("Build a SaaS startup")
-# Everything else happens automatically.
+# Routing, caching, memory, compression — all automatic.
 ```
 
 ---
@@ -22,49 +23,52 @@ response = ai.chat("Build a SaaS startup")
 
 | Feature | Description |
 |---------|-------------|
-| **Universal Model Router** | Auto-selects cheapest/best model per task type (code, vision, reasoning, etc.) |
-| **Semantic Cache** | Cosine similarity cache with < 20ms retrieval, 0.96 threshold |
-| **Long-Term Memory** | `remember()` / `forget()` / `search_memory()` with relevance ranking |
-| **Context Optimizer** | 40–80% token reduction via extractive compression + code-block preservation |
-| **LITM Solver** | Lost-in-the-Middle fix: compresses conversation middle, keeps beginning/end |
-| **OpenAI-Compatible Gateway** | Drop-in `/v1/chat/completions` endpoint with SSE streaming |
-| **Agent Framework** | Tool-calling agents with StartupAgent and CodingAgent built-in |
-| **Observability** | Prometheus metrics, cost tracking, latency histograms |
-| **Security** | API key masking, rate limiting, input validation |
-
----
-
-## Installation
-
-```bash
-pip install aicos
-```
-
-With optional extras:
-
-```bash
-pip install "aicos[redis]"           # Redis caching
-pip install "aicos[vector]"          # ChromaDB/FAISS vector stores
-pip install "aicos[embeddings]"      # sentence-transformers
-pip install "aicos[dev]"             # Development tools
-pip install "aicos[all]"             # Everything
-```
+| **Smart Model Router** | Embedding-based task classifier routes to the best model per task (code, vision, reasoning, etc.) |
+| **Semantic Cache** | Cosine similarity cache — identical or near-identical queries served in < 20ms |
+| **Long-Term Memory** | `remember()` / `forget()` / `search_memory()` with composite relevance scoring |
+| **Context Compression** | 40–80% token reduction preserving code blocks, JSON, and key facts |
+| **LITM Solver** | Lost-in-the-Middle fix: compresses conversation middle, keeps recency and context |
+| **OpenAI-Compatible Gateway** | Drop-in `/v1/chat/completions` with SSE streaming and provider failover |
+| **Web Dashboard** | Live metrics, cache stats, provider status at `http://localhost:4000` |
+| **Agent Framework** | Tool-calling agents with `StartupAgent` and `CodingAgent` built-in |
+| **Observability** | Prometheus metrics, per-request cost tracking, latency histograms |
+| **Multi-Provider** | OpenAI, Anthropic, Gemini, NVIDIA Nemotron, OpenRouter, Ollama |
 
 ---
 
 ## Quick Start
 
+### Docker (recommended)
+
+```bash
+cp .env.example .env   # add your API key(s)
+docker compose up
+```
+
+Open **http://localhost:4000** for the live dashboard.
+API at **http://localhost:4000/v1/chat/completions**.
+
+### pip
+
+```bash
+pip install "aicos[all]"
+cp .env.example .env
+aicos start
+```
+
 ### 1. Configure API Keys
 
 ```bash
 cp .env.example .env
-# Edit .env and add your API keys
 ```
 
 ```env
+# Use any combination — at least one required
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GEMINI_API_KEY=...
+OPENROUTER_API_KEY=sk-or-...   # Access NVIDIA Nemotron Ultra (free)
+NVIDIA_API_KEY=nvapi-...       # Direct NVIDIA API
 ```
 
 ### 2. Start the Gateway

@@ -150,12 +150,15 @@ class TestCostTracker:
     def tracker(self) -> CostTracker:
         return CostTracker()
 
-    def test_compute_cost_nemotron(self, tracker: CostTracker) -> None:
-        # Nemotron Ultra is free — cost should be 0
+    def test_compute_cost_gpt4o_mini(self, tracker: CostTracker) -> None:
+        # gpt-4o-mini: $0.15/1M input
+        cost = tracker.compute_cost("gpt-4o-mini", input_tokens=1_000_000, output_tokens=0)
+        assert abs(cost - 0.15) < 1e-6
+
+    def test_compute_cost_nemotron_free(self, tracker: CostTracker) -> None:
         cost = tracker.compute_cost(
             "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
-            input_tokens=1_000_000,
-            output_tokens=0,
+            input_tokens=1_000_000, output_tokens=0,
         )
         assert cost == 0.0
 
