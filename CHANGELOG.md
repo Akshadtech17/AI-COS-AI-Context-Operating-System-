@@ -5,6 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.0] — 2026-06-20
+
+### Added
+- **Structured logging** — `aicos/core/logging.py`: JSON formatter (via `orjson`), human-readable
+  color formatter for dev, `configure_logging()` called at startup, `get_logger()` for namespaced
+  loggers. Every request logs gateway entry, cache hit/miss, LLM call, provider failure, and
+  request complete with full cost + latency telemetry.
+- **Request tracing** — `aicos/api/middleware.py`: `RequestIDMiddleware` stamps every request with
+  `X-Request-ID` (accepted from header or generated as UUID4) and propagates it via `ContextVar`
+  so all log lines within a request carry the same correlation ID.
+- **Per-user API key management** — `aicos/auth/api_keys.py` + `/v1/keys` HTTP API:
+  - `POST /v1/keys` (master key required) — creates a SHA-256–hashed key; plaintext shown once.
+  - `GET /v1/keys` — lists active keys with prefix, scopes, last-used timestamp.
+  - `DELETE /v1/keys/{id}` — revokes a key; immediate effect on next request.
+  - Key format: `aicos-{urlsafe}-{hex40}` — prefix stored for safe display.
+  - Auth chain: master key → per-user key store → 403. Open access when no key is configured.
+- **Persistent cost tracking** — `CostTracker` now accepts `db_path`, creates `cost_records`
+  table via SQLAlchemy async, persists every record fire-and-forget (never blocks the request
+  path), and restores the last 1 000 records on restart.
+- **Deep health check** — `/health` probes each configured provider with `asyncio.wait_for`
+  (5-second timeout per provider), reports per-provider status (`ok` / `degraded` / `timeout`),
+  and returns `status: "degraded"` if no provider responds.
+- **Streaming error recovery** — `_stream_response` wraps the SSE generator in `try/except`
+  and emits a structured JSON error event instead of dropping the connection silently.
+- `AICOS_LOG_JSON` config field — set `true` for machine-readable JSON logs in production.
+
+### Changed
+- Version bumped `0.2.0 → 0.3.0` in `pyproject.toml`, `aicos/__init__.py`, and API `info.version`.
+- Gateway logs structured events at `INFO` level throughout the pipeline (routing, cache,
+  memory injection, LLM call, provider fallback, request complete).
+- `CostTracker.__init__` signature: `db_path: Path | None = None` (backward-compatible —
+  defaults to in-memory mode, matching prior behaviour for tests and CLI).
+
+---
+
 ## [0.2.0] — 2026-05-15
 
 ### Added

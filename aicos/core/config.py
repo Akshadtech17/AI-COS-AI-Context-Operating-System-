@@ -75,6 +75,7 @@ class AICOSConfig(BaseSettings):
 
     # ── Logging ──────────────────────────────────────────────────────────────
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field("INFO")
+    log_json: bool = Field(False)
     verbose: bool = Field(False)
 
     # ── CORS ─────────────────────────────────────────────────────────────────

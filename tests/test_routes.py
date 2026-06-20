@@ -54,10 +54,16 @@ def _make_response(**overrides: Any) -> GatewayResponse:
     return GatewayResponse(**{**defaults, **overrides})
 
 
-@pytest.fixture
-def client(route_config):
+def _mock_gateway() -> MagicMock:
     mock_gw = MagicMock()
     mock_gw.process = AsyncMock(return_value=_make_response())
+    mock_gw.close = AsyncMock()
+    return mock_gw
+
+
+@pytest.fixture
+def client(route_config):
+    mock_gw = _mock_gateway()
 
     async def _fake_build(cfg):
         return mock_gw, None
@@ -78,8 +84,7 @@ def auth_client(tmp_path):
         context_compression_enabled=False,
         gateway_api_key="secret-key",
     )
-    mock_gw = MagicMock()
-    mock_gw.process = AsyncMock(return_value=_make_response())
+    mock_gw = _mock_gateway()
 
     async def _fake_build(cfg):
         return mock_gw, None
@@ -107,8 +112,7 @@ def _make_mock_memory_store() -> MagicMock:
 
 @pytest.fixture
 def client_with_memory(route_config):
-    mock_gw = MagicMock()
-    mock_gw.process = AsyncMock(return_value=_make_response())
+    mock_gw = _mock_gateway()
     mock_ms = _make_mock_memory_store()
 
     async def _fake_build(cfg):
@@ -131,8 +135,7 @@ def rate_limited_client(tmp_path):
         rate_limit_enabled=True,
         rate_limit_rpm=2,  # Very low for testing
     )
-    mock_gw = MagicMock()
-    mock_gw.process = AsyncMock(return_value=_make_response())
+    mock_gw = _mock_gateway()
 
     async def _fake_build(cfg):
         return mock_gw, None
@@ -152,7 +155,7 @@ class TestHealthEndpoint:
         assert r.status_code == 200
         data = r.json()
         assert data["status"] == "ok"
-        assert data["version"] == "0.2.0"
+        assert data["version"] == "0.3.0"
 
     def test_health_lists_providers(self, client) -> None:
         c, _ = client
@@ -360,7 +363,7 @@ class TestCORS:
         c, _ = client
         r = c.get("/openapi.json")
         assert r.status_code == 200
-        assert r.json()["info"]["version"] == "0.2.0"
+        assert r.json()["info"]["version"] == "0.3.0"
 
 
 # ── Streaming ─────────────────────────────────────────────────────────────────
@@ -497,6 +500,196 @@ class TestMemoryAPI:
         c, _ = client
         r = c.post("/v1/memory", json={"content": "test"})
         assert r.status_code == 503
+
+
+# ── API Key Management ────────────────────────────────────────────────────────
+
+@pytest.fixture
+def key_mgmt_client(tmp_path):
+    """Client with master key configured for key management tests."""
+    cfg = AICOSConfig(
+        openai_api_key="sk-test-key",
+        db_path=str(tmp_path / "test.db"),
+        cache_enabled=False,
+        memory_enabled=False,
+        context_compression_enabled=False,
+        gateway_api_key="master-key-secret",
+    )
+    mock_gw = _mock_gateway()
+
+    async def _fake_build(cfg):
+        return mock_gw, None
+
+    with patch("aicos.api.routes._build_gateway", _fake_build):
+        app = create_app(config=cfg)
+        with TestClient(app) as c:
+            yield c
+
+
+class TestAPIKeyManagement:
+    def test_create_key_requires_master_key(self, key_mgmt_client) -> None:
+        r = key_mgmt_client.post("/v1/keys", json={"name": "test-key"})
+        assert r.status_code == 401
+
+    def test_create_key_wrong_master_key_returns_403(self, key_mgmt_client) -> None:
+        r = key_mgmt_client.post(
+            "/v1/keys",
+            json={"name": "test-key"},
+            headers={"Authorization": "Bearer wrong-master"},
+        )
+        assert r.status_code == 403
+
+    def test_create_key_returns_plaintext_once(self, key_mgmt_client) -> None:
+        r = key_mgmt_client.post(
+            "/v1/keys",
+            json={"name": "my-service"},
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        assert r.status_code == 201
+        data = r.json()
+        assert "key" in data
+        assert data["key"].startswith("aicos-")
+        assert "id" in data
+        assert data["name"] == "my-service"
+        assert "prefix" in data
+        assert "warning" in data
+
+    def test_create_key_with_custom_scopes(self, key_mgmt_client) -> None:
+        r = key_mgmt_client.post(
+            "/v1/keys",
+            json={"name": "read-only", "scopes": ["chat"]},
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        assert r.status_code == 201
+        assert r.json()["scopes"] == ["chat"]
+
+    def test_list_keys_requires_master_key(self, key_mgmt_client) -> None:
+        r = key_mgmt_client.get("/v1/keys")
+        assert r.status_code == 401
+
+    def test_list_keys_shows_created_keys(self, key_mgmt_client) -> None:
+        key_mgmt_client.post(
+            "/v1/keys",
+            json={"name": "service-a"},
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        r = key_mgmt_client.get(
+            "/v1/keys",
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        assert r.status_code == 200
+        keys = r.json()["keys"]
+        assert len(keys) >= 1
+        assert any(k["name"] == "service-a" for k in keys)
+
+    def test_list_keys_does_not_expose_hash(self, key_mgmt_client) -> None:
+        key_mgmt_client.post(
+            "/v1/keys",
+            json={"name": "service-b"},
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        r = key_mgmt_client.get(
+            "/v1/keys",
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        for key in r.json()["keys"]:
+            assert "key_hash" not in key
+            assert "hash" not in key
+            assert len(key.get("prefix", "")) <= 20
+
+    def test_revoke_key_removes_from_list(self, key_mgmt_client) -> None:
+        create_r = key_mgmt_client.post(
+            "/v1/keys",
+            json={"name": "to-revoke"},
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        key_id = create_r.json()["id"]
+
+        revoke_r = key_mgmt_client.delete(
+            f"/v1/keys/{key_id}",
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        assert revoke_r.status_code == 200
+        assert revoke_r.json()["status"] == "revoked"
+
+        list_r = key_mgmt_client.get(
+            "/v1/keys",
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        keys = list_r.json()["keys"]
+        assert not any(k["id"] == key_id for k in keys)
+
+    def test_revoke_nonexistent_key_returns_404(self, key_mgmt_client) -> None:
+        r = key_mgmt_client.delete(
+            "/v1/keys/99999",
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        assert r.status_code == 404
+
+    def test_per_user_key_grants_chat_access(self, key_mgmt_client) -> None:
+        create_r = key_mgmt_client.post(
+            "/v1/keys",
+            json={"name": "user-key"},
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        user_key = create_r.json()["key"]
+
+        r = key_mgmt_client.post(
+            "/v1/chat/completions",
+            json={"messages": [{"role": "user", "content": "hi"}]},
+            headers={"Authorization": f"Bearer {user_key}"},
+        )
+        assert r.status_code == 200
+
+    def test_revoked_key_denied(self, key_mgmt_client) -> None:
+        create_r = key_mgmt_client.post(
+            "/v1/keys",
+            json={"name": "temp-key"},
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+        data = create_r.json()
+        user_key = data["key"]
+        key_id = data["id"]
+
+        key_mgmt_client.delete(
+            f"/v1/keys/{key_id}",
+            headers={"Authorization": "Bearer master-key-secret"},
+        )
+
+        r = key_mgmt_client.post(
+            "/v1/chat/completions",
+            json={"messages": [{"role": "user", "content": "hi"}]},
+            headers={"Authorization": f"Bearer {user_key}"},
+        )
+        assert r.status_code == 403
+
+
+# ── Streaming Error Recovery ──────────────────────────────────────────────────
+
+class TestStreamingErrorRecovery:
+    @staticmethod
+    async def _failing_stream(request):
+        yield StreamChunk(delta="Starting...", model="gpt-4o-mini")
+        raise RuntimeError("Provider connection lost")
+
+    def test_streaming_error_returns_error_json(self, client) -> None:
+        c, mock_gw = client
+        mock_gw.stream = self._failing_stream
+        r = c.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": True,
+        })
+        assert r.status_code == 200  # SSE stream starts 200 even on error
+        assert "stream_error" in r.text or "provider_error" in r.text or "error" in r.text
+
+    def test_streaming_error_does_not_return_500(self, client) -> None:
+        c, mock_gw = client
+        mock_gw.stream = self._failing_stream
+        r = c.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": True,
+        })
+        assert r.status_code != 500
 
 
 # ── Rate Limiting ─────────────────────────────────────────────────────────────

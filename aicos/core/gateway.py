@@ -21,9 +21,12 @@ from aicos.cache.semantic_cache import SemanticCache
 from aicos.context.compressor import ContextCompressor, count_message_tokens
 from aicos.context.history_manager import HistoryManager
 from aicos.core.config import AICOSConfig
+from aicos.core.logging import get_logger, set_session_id
 from aicos.core.router import ModelRouter, RoutingDecision
 from aicos.memory.retrieval import MemoryRetriever
 from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
+
+log = get_logger("core.gateway")
 
 
 @dataclass
@@ -87,6 +90,10 @@ class AIGateway:
         )
         self._metrics = get_metrics()
 
+    async def close(self) -> None:
+        if self._cost_tracker:
+            await self._cost_tracker.close()
+
     def _context_hash(self, messages: list[dict[str, Any]]) -> str:
         """Hash conversation context for cache keying."""
         serialized = str([(m.get("role"), m.get("content", "")[:200]) for m in messages[:-1]])
@@ -107,6 +114,18 @@ class AIGateway:
         """
         t_start = time.perf_counter()
         metrics = self._metrics
+
+        if request.session_id:
+            set_session_id(request.session_id)
+
+        log.info(
+            "Gateway request",
+            extra={
+                "n_messages": len(request.messages),
+                "model_hint": request.model,
+                "skip_cache": request.skip_cache,
+            },
+        )
 
         # ── Step 1: Routing ───────────────────────────────────────────────
         decision = self._router.select_model(
@@ -167,6 +186,15 @@ class AIGateway:
 
             if cache_result:
                 total_ms = (time.perf_counter() - t_start) * 1000
+                log.info(
+                    "Cache hit",
+                    extra={
+                        "hit_type": cache_result.hit_type,
+                        "similarity": round(cache_result.similarity, 4),
+                        "latency_ms": round(total_ms, 2),
+                        "model": decision.model,
+                    },
+                )
                 savings = self._cost_tracker.compute_savings(
                     decision.model,
                     tokens_after,
@@ -213,6 +241,10 @@ class AIGateway:
             if not provider:
                 continue
 
+            log.info(
+                "LLM call",
+                extra={"provider": spec.provider, "model": model_attempt},
+            )
             try:
                 provider_response = await provider.complete(
                     messages=messages,
@@ -225,7 +257,19 @@ class AIGateway:
                 used_provider = spec.provider
                 break
             except Exception as e:
+                log.warning(
+                    "Provider failed, trying fallback",
+                    extra={
+                        "provider": spec.provider,
+                        "model": model_attempt,
+                        "error": str(e),
+                    },
+                )
                 if model_attempt == models_to_try[-1]:
+                    log.error(
+                        "All providers exhausted",
+                        extra={"last_error": str(e)},
+                    )
                     raise RuntimeError(
                         f"All providers failed. Last error: {e}"
                     ) from e
@@ -260,6 +304,20 @@ class AIGateway:
 
         total_ms = (time.perf_counter() - t_start) * 1000
         metrics.record_stage_latency("gateway_overhead", total_ms - llm_ms)
+
+        log.info(
+            "Request complete",
+            extra={
+                "provider": used_provider,
+                "model": used_model,
+                "latency_ms": round(total_ms, 2),
+                "llm_ms": round(llm_ms, 2),
+                "tokens_in": provider_response.input_tokens,
+                "tokens_out": provider_response.output_tokens,
+                "cost_usd": cost_record.cost_usd,
+                "memories_injected": memories_injected,
+            },
+        )
 
         return GatewayResponse(
             content=provider_response.content,

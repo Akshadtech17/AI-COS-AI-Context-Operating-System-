@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aicos"
-version = "0.2.0"
+version = "0.3.0"
 description = "The operating system between applications and AI"
 readme = "README.md"
 license = { text = "MIT" }
