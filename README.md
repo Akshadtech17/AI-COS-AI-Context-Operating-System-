@@ -4,8 +4,9 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-189%20passing-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-73%25-yellow.svg)]()
+[![CI](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-316%20passing-brightgreen.svg)](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/actions)
+[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen.svg)](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/actions)
 
 AI-COS is a self-hosted AI infrastructure layer that sits between your applications and LLM providers. It handles model routing, semantic caching, long-term memory, context compression, and observability — so your application code stays clean.
 

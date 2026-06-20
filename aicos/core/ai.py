@@ -201,7 +201,7 @@ class AI:
         Returns:
             Response string (or iterator if stream=True)
         """
-        return asyncio.get_event_loop().run_until_complete(
+        return asyncio.run(
             self.achat(message, system=system, model=model, stream=stream, **kwargs)
         )
 
@@ -287,7 +287,7 @@ class AI:
         Returns:
             Memory ID
         """
-        return asyncio.get_event_loop().run_until_complete(
+        return asyncio.run(
             self.aremember(content, tags=tags, metadata=metadata)
         )
 
@@ -306,7 +306,7 @@ class AI:
 
     def forget(self, memory_id: int) -> bool:
         """Delete a stored memory by ID."""
-        return asyncio.get_event_loop().run_until_complete(self.aforget(memory_id))
+        return asyncio.run(self.aforget(memory_id))
 
     async def aforget(self, memory_id: int) -> bool:
         await self._ensure_initialized()
@@ -320,7 +320,7 @@ class AI:
         threshold: float = 0.3,
     ) -> list[dict[str, Any]]:
         """Search stored memories by semantic similarity."""
-        return asyncio.get_event_loop().run_until_complete(
+        return asyncio.run(
             self.asearch_memory(query, top_k=top_k, threshold=threshold)
         )
 
