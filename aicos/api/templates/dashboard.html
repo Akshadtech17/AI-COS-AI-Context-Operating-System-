@@ -126,7 +126,7 @@
   <div class="logo">
     <div class="logo-dot"></div>
     AI-COS
-    <span class="badge">v0.2.0</span>
+    <span class="badge">v0.5.0</span>
   </div>
   <div class="refresh-info">
     <span id="status-dot"></span>
@@ -296,17 +296,19 @@
         if (cells[i]) cells[i].querySelector(".t-val").textContent = fmt(tasks[t] ?? 0);
       });
 
-      // Providers
-      const activeProviders = health.providers || [];
+      // Providers — health.providers is {name: "ok"|"degraded"|"timeout"|"error"}
+      const providerStatus = health.providers || {};
       const allProviders = ["openai", "anthropic", "gemini", "nvidia", "openrouter", "ollama"];
       const html = allProviders.map(p => {
-        const active = activeProviders.includes(p);
+        const status = providerStatus[p];
+        const active = status === "ok";
+        const label = status ? (active ? "active" : status) : "not configured";
         return `<div class="provider-row">
           <div>
             <div class="provider-name">${p.charAt(0).toUpperCase() + p.slice(1)}</div>
             <div class="provider-model">${PROVIDER_MODELS[p] || ""}</div>
           </div>
-          <span class="pill ${active ? "pill-active" : "pill-inactive"}">${active ? "active" : "not configured"}</span>
+          <span class="pill ${active ? "pill-active" : "pill-inactive"}">${label}</span>
         </div>`;
       }).join("");
       document.getElementById("providers-list").innerHTML = html;
