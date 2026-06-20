@@ -85,6 +85,9 @@ Issues = "https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/is
 where = ["."]
 include = ["aicos*"]
 
+[tool.setuptools.package-data]
+aicos = ["py.typed", "api/templates/*.html"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
