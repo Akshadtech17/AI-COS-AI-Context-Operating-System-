@@ -263,7 +263,7 @@ class AIGateway:
             try:
                 provider_response = await provider.complete(
                     messages=messages,
-                    model=model_attempt,
+                    model=spec.model_id,
                     max_tokens=request.max_tokens,
                     temperature=request.temperature,
                     **request.extra,
@@ -422,7 +422,7 @@ class AIGateway:
             try:
                 async for chunk in provider.stream(
                     messages=messages,
-                    model=model_attempt,
+                    model=spec.model_id,
                     max_tokens=request.max_tokens,
                     temperature=request.temperature,
                 ):
