@@ -131,6 +131,28 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
         avg_latency_ms=1500,
         tier="mid",
     ),
+    # NVIDIA Nemotron via direct API (nvapi-... key)
+    "nvidia/llama-3.1-nemotron-ultra-253b-v1": ModelSpec(
+        model_id="nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        provider="nvidia",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=128_000,
+        capabilities={"text", "code", "reasoning", "analysis", "json"},
+        avg_latency_ms=2500,
+        tier="free",
+    ),
+    # NVIDIA Nemotron via OpenRouter (sk-or-... key)
+    "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1": ModelSpec(
+        model_id="nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        provider="openrouter",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=128_000,
+        capabilities={"text", "code", "reasoning", "analysis", "json"},
+        avg_latency_ms=2500,
+        tier="free",
+    ),
     # Ollama (local, free)
     "ollama/llama3.2": ModelSpec(
         model_id="ollama/llama3.2",
@@ -165,15 +187,15 @@ TASK_CAPABILITY_MAP: dict[TaskType, list[str]] = {
     TaskType.AGENT: ["agent"],
 }
 
-# Task → preferred tier
+# Task → preferred tier  ("free" = NVIDIA Nemotron — powerful and $0)
 TASK_TIER_PREFERENCE: dict[TaskType, list[str]] = {
-    TaskType.SIMPLE: ["cheap", "local", "mid"],
-    TaskType.CODING: ["mid", "cheap", "premium"],
+    TaskType.SIMPLE: ["free", "cheap", "local", "mid"],
+    TaskType.CODING: ["free", "mid", "cheap", "premium"],
     TaskType.VISION: ["mid", "premium"],
-    TaskType.REASONING: ["premium", "mid"],
-    TaskType.CREATIVE: ["mid", "cheap"],
-    TaskType.ANALYSIS: ["premium", "mid"],
-    TaskType.AGENT: ["premium", "mid"],
+    TaskType.REASONING: ["free", "premium", "mid"],
+    TaskType.CREATIVE: ["free", "mid", "cheap"],
+    TaskType.ANALYSIS: ["free", "premium", "mid"],
+    TaskType.AGENT: ["free", "premium", "mid"],
 }
 
 # Patterns for task classification
@@ -330,7 +352,7 @@ class ModelRouter:
         elif strategy == "fastest":
             chosen = min(capable, key=lambda m: m.avg_latency_ms)
         elif strategy == "best":
-            tier_order = {"premium": 0, "mid": 1, "cheap": 2, "local": 3}
+            tier_order = {"premium": 0, "free": 1, "mid": 1, "cheap": 2, "local": 3}
             chosen = min(capable, key=lambda m: tier_order.get(m.tier, 99))
         else:  # auto — cost-quality tradeoff per task type
             tier_pref = TASK_TIER_PREFERENCE.get(task_type, ["mid", "cheap"])

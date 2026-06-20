@@ -22,7 +22,8 @@ from typing import Any, AsyncIterator, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -98,6 +99,11 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
             api_key=cfg.openrouter_api_key,
             base_url="https://openrouter.ai/api/v1",
         )
+    if cfg.nvidia_api_key:
+        providers["nvidia"] = OpenAIProvider(
+            api_key=cfg.nvidia_api_key,
+            base_url="https://integrate.api.nvidia.com/v1",
+        )
 
     db_path = cfg.get_resolved_db_path()
     embedding_engine = EmbeddingEngine()
@@ -166,12 +172,27 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
 
     limiter = Limiter(key_func=get_remote_address)
 
+    _NVIDIA_FAVICON = "https://www.nvidia.com/favicon.ico"
+
     app = FastAPI(
         title="AI-COS Gateway",
         description="OpenAI-compatible AI gateway with memory, caching, and routing",
         version="0.1.0",
         lifespan=lifespan,
+        docs_url=None,  # replaced by custom endpoint below
     )
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> RedirectResponse:
+        return RedirectResponse(url=_NVIDIA_FAVICON)
+
+    @app.get("/docs", include_in_schema=False)
+    async def swagger_ui() -> Any:
+        return get_swagger_ui_html(
+            openapi_url="/openapi.json",
+            title="AI-COS Gateway",
+            swagger_favicon_url=_NVIDIA_FAVICON,
+        )
 
     app.state.limiter = limiter
 

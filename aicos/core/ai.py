@@ -151,6 +151,12 @@ class AI:
                 base_url="https://openrouter.ai/api/v1",
             )
 
+        if cfg.nvidia_api_key:
+            providers["nvidia"] = OpenAIProvider(
+                api_key=cfg.nvidia_api_key,
+                base_url="https://integrate.api.nvidia.com/v1",
+            )
+
         return providers
 
     async def _llm_call_simple(

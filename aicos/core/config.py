@@ -25,6 +25,7 @@ class AICOSConfig(BaseSettings):
     anthropic_api_key: str | None = Field(None, alias="ANTHROPIC_API_KEY")
     gemini_api_key: str | None = Field(None, alias="GEMINI_API_KEY")
     openrouter_api_key: str | None = Field(None, alias="OPENROUTER_API_KEY")
+    nvidia_api_key: str | None = Field(None, alias="NVIDIA_API_KEY")
     ollama_base_url: str = Field("http://localhost:11434", alias="OLLAMA_BASE_URL")
 
     # ── Database ────────────────────────────────────────────────────────────
@@ -98,6 +99,8 @@ class AICOSConfig(BaseSettings):
             providers.append("gemini")
         if self.openrouter_api_key:
             providers.append("openrouter")
+        if self.nvidia_api_key:
+            providers.append("nvidia")
         providers.append("ollama")  # Always available if running locally
         return providers
 
@@ -105,7 +108,7 @@ class AICOSConfig(BaseSettings):
         """Return config dict with API keys masked for safe display."""
         data = self.model_dump()
         for key in ("openai_api_key", "anthropic_api_key", "gemini_api_key",
-                    "openrouter_api_key", "gateway_api_key"):
+                    "openrouter_api_key", "nvidia_api_key", "gateway_api_key"):
             if data.get(key):
                 val = str(data[key])
                 data[key] = val[:8] + "..." + val[-4:] if len(val) > 12 else "***"
