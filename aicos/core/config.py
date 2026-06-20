@@ -77,6 +77,9 @@ class AICOSConfig(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field("INFO")
     verbose: bool = Field(False)
 
+    # ── CORS ─────────────────────────────────────────────────────────────────
+    cors_allowed_origins: list[str] = Field(default_factory=lambda: ["*"])
+
     # ── Optional Integrations ────────────────────────────────────────────────
     redis_url: str | None = Field(None)
     ollama_enabled: bool = Field(False)  # Set True to enable local Ollama routing

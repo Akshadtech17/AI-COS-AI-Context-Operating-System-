@@ -207,10 +207,11 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
+    _wildcard_cors = cfg.cors_allowed_origins == ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=cfg.cors_allowed_origins,
+        allow_credentials=not _wildcard_cors,  # credentials forbidden with wildcard origin
         allow_methods=["*"],
         allow_headers=["*"],
     )

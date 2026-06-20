@@ -38,12 +38,19 @@ def mock_prov():
 
 
 @pytest.fixture
-def ai(ai_config, mock_prov):
+async def ai(ai_config, mock_prov):
     instance = AI(config=ai_config)
     instance._build_providers = MagicMock(
         return_value={"openrouter": mock_prov, "openai": mock_prov}
     )
-    return instance
+    yield instance
+    # Dispose SQLAlchemy engines before the event loop closes.
+    # Without this, aiosqlite connections created in this loop survive into
+    # the next test's loop and cause "Future attached to a different loop" errors.
+    if instance._memory_store is not None:
+        await instance._memory_store.close()
+    if instance._gateway is not None and instance._gateway._cache is not None:
+        await instance._gateway._cache._cache.close()
 
 
 # ── Initialization ────────────────────────────────────────────────────────────
