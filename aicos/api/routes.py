@@ -12,8 +12,6 @@ Endpoints:
   DELETE /v1/memory/{id}     — Delete a memory
 """
 
-from __future__ import annotations
-
 import json
 import time
 import uuid
@@ -27,7 +25,9 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
-from slowapi import Limiter
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
 
@@ -175,6 +175,7 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
         _memory_store = None
 
     limiter = Limiter(key_func=get_remote_address)
+    rate_limit_str = f"{cfg.rate_limit_rpm}/minute" if cfg.rate_limit_enabled else "100000/minute"
 
     _NVIDIA_FAVICON = "https://www.nvidia.com/favicon.ico"
 
@@ -204,7 +205,8 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
         return FileResponse(_DASHBOARD_HTML)
 
     app.state.limiter = limiter
-
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -255,34 +257,36 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
     # ── Chat Completions ──────────────────────────────────────────────────
 
     @app.post("/v1/chat/completions")
+    @limiter.limit(rate_limit_str)
     async def chat_completions(
-        request: ChatCompletionRequest,
+        request: Request,
+        body: ChatCompletionRequest,
         _auth: None = Security(_check_api_key),
     ) -> Any:
         gateway = _get_gateway()
-        messages = [m.model_dump() for m in request.messages]
-        model = None if request.model in ("auto", "") else request.model
+        messages = [m.model_dump() for m in body.messages]
+        model = None if body.model in ("auto", "") else body.model
 
         gateway_request = GatewayRequest(
             messages=messages,
             model=model,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            stream=request.stream,
-            session_id=request.session_id or str(uuid.uuid4()),
-            skip_cache=request.skip_cache,
-            skip_memory=request.skip_memory,
-            skip_compression=request.skip_compression,
+            max_tokens=body.max_tokens,
+            temperature=body.temperature,
+            stream=body.stream,
+            session_id=body.session_id or str(uuid.uuid4()),
+            skip_cache=body.skip_cache,
+            skip_memory=body.skip_memory,
+            skip_compression=body.skip_compression,
         )
 
-        if request.stream:
+        if body.stream:
             return EventSourceResponse(
                 _stream_response(gateway, gateway_request, model or "auto"),
                 media_type="text/event-stream",
             )
 
         response = await gateway.process(gateway_request)
-        return _format_completion_response(response, request.messages)
+        return _format_completion_response(response, body.messages)
 
     async def _stream_response(
         gateway: AIGateway,

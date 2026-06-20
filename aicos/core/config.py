@@ -79,6 +79,7 @@ class AICOSConfig(BaseSettings):
 
     # ── Optional Integrations ────────────────────────────────────────────────
     redis_url: str | None = Field(None)
+    ollama_enabled: bool = Field(False)  # Set True to enable local Ollama routing
 
     @field_validator("db_path", mode="before")
     @classmethod
@@ -108,7 +109,8 @@ class AICOSConfig(BaseSettings):
             providers.append("openrouter")
         if self.nvidia_api_key:
             providers.append("nvidia")
-        providers.append("ollama")  # Always available if running locally
+        if self.ollama_enabled:
+            providers.append("ollama")
         return providers
 
     def mask_secrets(self) -> dict[str, object]:

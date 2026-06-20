@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,6 +12,7 @@ from fastapi.testclient import TestClient
 from aicos.api.routes import create_app
 from aicos.core.config import AICOSConfig
 from aicos.core.gateway import GatewayResponse
+from aicos.providers.base import StreamChunk
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -85,6 +87,59 @@ def auth_client(tmp_path):
     with patch("aicos.api.routes._build_gateway", _fake_build):
         app = create_app(config=cfg)
         with TestClient(app) as c:
+            yield c
+
+
+def _make_mock_memory_store() -> MagicMock:
+    mock_item = MagicMock()
+    mock_item.id = 1
+    mock_item.content = "Test memory content"
+    mock_item.tag_list = ["test", "demo"]
+    mock_item.created_at = datetime(2026, 1, 1, 12, 0, 0)
+
+    ms = MagicMock()
+    ms.store = AsyncMock(return_value=1)
+    ms.search = AsyncMock(return_value=[(mock_item, 0.95)])
+    ms.forget = AsyncMock(return_value=True)
+    ms.close = AsyncMock()
+    return ms
+
+
+@pytest.fixture
+def client_with_memory(route_config):
+    mock_gw = MagicMock()
+    mock_gw.process = AsyncMock(return_value=_make_response())
+    mock_ms = _make_mock_memory_store()
+
+    async def _fake_build(cfg):
+        return mock_gw, mock_ms
+
+    with patch("aicos.api.routes._build_gateway", _fake_build):
+        app = create_app(config=route_config)
+        with TestClient(app) as c:
+            yield c, mock_gw, mock_ms
+
+
+@pytest.fixture
+def rate_limited_client(tmp_path):
+    cfg = AICOSConfig(
+        openai_api_key="sk-test-key",
+        db_path=str(tmp_path / "test.db"),
+        cache_enabled=False,
+        memory_enabled=False,
+        context_compression_enabled=False,
+        rate_limit_enabled=True,
+        rate_limit_rpm=2,  # Very low for testing
+    )
+    mock_gw = MagicMock()
+    mock_gw.process = AsyncMock(return_value=_make_response())
+
+    async def _fake_build(cfg):
+        return mock_gw, None
+
+    with patch("aicos.api.routes._build_gateway", _fake_build):
+        app = create_app(config=cfg)
+        with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 
 
@@ -306,3 +361,160 @@ class TestCORS:
         r = c.get("/openapi.json")
         assert r.status_code == 200
         assert r.json()["info"]["version"] == "0.2.0"
+
+
+# ── Streaming ─────────────────────────────────────────────────────────────────
+
+class TestStreaming:
+    @staticmethod
+    async def _stream_chunks(request):
+        yield StreamChunk(delta="Hello", model="gpt-4o-mini")
+        yield StreamChunk(delta=" world", model="gpt-4o-mini")
+        yield StreamChunk(
+            delta="", model="gpt-4o-mini", finish_reason="stop",
+            input_tokens=5, output_tokens=2,
+        )
+
+    def test_streaming_returns_200(self, client) -> None:
+        c, mock_gw = client
+        mock_gw.stream = self._stream_chunks
+        r = c.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": True,
+        })
+        assert r.status_code == 200
+
+    def test_streaming_content_type_is_sse(self, client) -> None:
+        c, mock_gw = client
+        mock_gw.stream = self._stream_chunks
+        r = c.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": True,
+        })
+        assert "text/event-stream" in r.headers.get("content-type", "")
+
+    def test_streaming_body_contains_done(self, client) -> None:
+        c, mock_gw = client
+        mock_gw.stream = self._stream_chunks
+        r = c.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": True,
+        })
+        assert "[DONE]" in r.text
+
+    def test_streaming_body_contains_json_chunks(self, client) -> None:
+        c, mock_gw = client
+        mock_gw.stream = self._stream_chunks
+        r = c.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": True,
+        })
+        assert "chat.completion.chunk" in r.text
+
+    def test_streaming_non_streaming_are_different(self, client) -> None:
+        c, mock_gw = client
+        mock_gw.stream = self._stream_chunks
+        r_stream = c.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": True,
+        })
+        r_sync = c.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+            "stream": False,
+        })
+        # Stream response contains SSE format, sync contains JSON object
+        assert "[DONE]" in r_stream.text
+        assert r_sync.json()["object"] == "chat.completion"
+
+
+# ── Memory API ────────────────────────────────────────────────────────────────
+
+class TestMemoryAPI:
+    def test_store_memory_returns_id(self, client_with_memory) -> None:
+        c, _, mock_ms = client_with_memory
+        r = c.post("/v1/memory", json={"content": "Remember this fact"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["id"] == 1
+        assert data["status"] == "stored"
+
+    def test_store_memory_calls_store(self, client_with_memory) -> None:
+        c, _, mock_ms = client_with_memory
+        c.post("/v1/memory", json={"content": "Test memory", "tags": ["work"]})
+        mock_ms.store.assert_called_once()
+        call_kwargs = mock_ms.store.call_args[1]
+        assert call_kwargs["content"] == "Test memory"
+        assert call_kwargs["tags"] == ["work"]
+
+    def test_store_memory_with_metadata(self, client_with_memory) -> None:
+        c, _, mock_ms = client_with_memory
+        r = c.post("/v1/memory", json={
+            "content": "Test",
+            "tags": ["a", "b"],
+            "metadata": {"source": "user"},
+        })
+        assert r.status_code == 200
+
+    def test_search_memory_returns_results(self, client_with_memory) -> None:
+        c, _, mock_ms = client_with_memory
+        r = c.get("/v1/memory/search?query=test")
+        assert r.status_code == 200
+        data = r.json()
+        assert "query" in data
+        assert "results" in data
+        assert data["query"] == "test"
+
+    def test_search_memory_result_structure(self, client_with_memory) -> None:
+        c, _, mock_ms = client_with_memory
+        r = c.get("/v1/memory/search?query=test")
+        results = r.json()["results"]
+        assert len(results) == 1
+        result = results[0]
+        assert result["id"] == 1
+        assert result["content"] == "Test memory content"
+        assert result["score"] == 0.95
+        assert "tags" in result
+        assert "created_at" in result
+
+    def test_search_memory_custom_params(self, client_with_memory) -> None:
+        c, _, mock_ms = client_with_memory
+        c.get("/v1/memory/search?query=test&top_k=3&threshold=0.5")
+        mock_ms.search.assert_called_once_with("test", top_k=3, threshold=0.5)
+
+    def test_delete_memory_returns_status(self, client_with_memory) -> None:
+        c, _, mock_ms = client_with_memory
+        r = c.delete("/v1/memory/1")
+        assert r.status_code == 200
+        assert r.json()["status"] == "deleted"
+
+    def test_delete_memory_not_found(self, client_with_memory) -> None:
+        c, _, mock_ms = client_with_memory
+        mock_ms.forget = AsyncMock(return_value=False)
+        r = c.delete("/v1/memory/999")
+        assert r.status_code == 404
+
+    def test_memory_unavailable_returns_503(self, client) -> None:
+        c, _ = client
+        r = c.post("/v1/memory", json={"content": "test"})
+        assert r.status_code == 503
+
+
+# ── Rate Limiting ─────────────────────────────────────────────────────────────
+
+class TestRateLimiting:
+    def test_within_limit_succeeds(self, rate_limited_client) -> None:
+        r = rate_limited_client.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+        })
+        assert r.status_code == 200
+
+    def test_exceeding_limit_returns_429(self, rate_limited_client) -> None:
+        # Limit is 2/minute; 3rd request should be rate limited
+        for _ in range(2):
+            rate_limited_client.post("/v1/chat/completions", json={
+                "messages": [{"role": "user", "content": "test"}],
+            })
+        r = rate_limited_client.post("/v1/chat/completions", json={
+            "messages": [{"role": "user", "content": "test"}],
+        })
+        assert r.status_code == 429
