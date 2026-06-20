@@ -265,12 +265,22 @@ class MetricsCollector:
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-serializable summary."""
+        tokens_saved = max(
+            0,
+            self.tokens_before_compression.value - self.tokens_after_compression.value,
+        )
+        hit_rate_pct = round(self.cache_hit_rate * 100, 1)
+        compression_ratio_pct = round(self.compression_ratio * 100, 1)
+        task_counts = {t: c.value for t, c in self.requests_by_task.items()}
+        memories = self.memory_stored.value
+
         return {
             "requests": {
                 "total": self.requests_total.value,
                 "errors": self.request_errors.value,
                 "by_model": {m: c.value for m, c in self.requests_by_model.items()},
-                "by_task": {t: c.value for t, c in self.requests_by_task.items()},
+                "by_task": task_counts,
+                "by_task_type": task_counts,  # dashboard alias
             },
             "tokens": {
                 "input_total": self.tokens_input_total.value,
@@ -285,6 +295,7 @@ class MetricsCollector:
                 "hits": self.cache_hits.value,
                 "misses": self.cache_misses.value,
                 "hit_rate": round(self.cache_hit_rate, 4),
+                "hit_rate_pct": hit_rate_pct,  # dashboard alias (0-100)
                 "semantic_hits": self.cache_semantic_hits.value,
             },
             "latency": {
@@ -294,15 +305,19 @@ class MetricsCollector:
                 "p99_ms": round(self.latency_total_ms.p99(), 2),
             },
             "compression": {
-                "tokens_saved": max(
-                    0,
-                    self.tokens_before_compression.value - self.tokens_after_compression.value
-                ),
+                "tokens_saved": tokens_saved,
                 "ratio": round(self.compression_ratio, 4),
             },
+            # dashboard reads stats.context.*
+            "context": {
+                "tokens_saved": tokens_saved,
+                "compression_ratio_pct": compression_ratio_pct,
+            },
             "memory": {
-                "stored": self.memory_stored.value,
+                "stored": memories,
+                "total_stored": memories,  # dashboard alias
                 "retrieved": self.memory_retrieved.value,
+                "max_items": 10_000,
             },
             "uptime_seconds": round(self.uptime_seconds, 2),
         }

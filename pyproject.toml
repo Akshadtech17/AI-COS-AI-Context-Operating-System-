@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aicos"
-version = "0.1.0"
+version = "0.2.0"
 description = "The operating system between applications and AI"
 readme = "README.md"
 license = { text = "MIT" }
@@ -77,10 +77,9 @@ all = ["aicos[redis,vector,embeddings,dev]"]
 aicos = "aicos.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/aicos-dev/aicos"
-Documentation = "https://docs.aicos.dev"
-Repository = "https://github.com/aicos-dev/aicos"
-Issues = "https://github.com/aicos-dev/aicos/issues"
+Homepage = "https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-"
+Repository = "https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-"
+Issues = "https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

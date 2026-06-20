@@ -18,21 +18,21 @@ import json
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Optional
-
 from pathlib import Path
+from typing import Any, AsyncIterator, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
-
-_DASHBOARD_HTML = Path(__file__).parent / "templates" / "dashboard.html"
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
+
+_DASHBOARD_HTML = Path(__file__).parent / "templates" / "dashboard.html"
+_VERSION = "0.2.0"
 
 from aicos.analytics.cost_tracker import CostTracker
 from aicos.analytics.metrics import get_metrics
@@ -159,20 +159,20 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
     return gateway, memory_store
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global _gateway, _memory_store
-    cfg = get_config()
-    _gateway, _memory_store = await _build_gateway(cfg)
-    yield
-    if _memory_store:
-        await _memory_store.close()
-
-
 # ── App factory ───────────────────────────────────────────────────────────────
 
 def create_app(config: AICOSConfig | None = None) -> FastAPI:
     cfg = config or get_config()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        global _gateway, _memory_store
+        _gateway, _memory_store = await _build_gateway(cfg)
+        yield
+        if _memory_store:
+            await _memory_store.close()
+        _gateway = None
+        _memory_store = None
 
     limiter = Limiter(key_func=get_remote_address)
 
@@ -181,7 +181,7 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
     app = FastAPI(
         title="AI-COS Gateway",
         description="OpenAI-compatible AI gateway with memory, caching, and routing",
-        version="0.1.0",
+        version=_VERSION,
         lifespan=lifespan,
         docs_url=None,  # replaced by custom endpoint below
     )
@@ -235,7 +235,7 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
     async def health() -> dict[str, Any]:
         return {
             "status": "ok",
-            "version": "0.1.0",
+            "version": _VERSION,
             "providers": cfg.available_providers(),
             "cache_enabled": cfg.cache_enabled,
             "memory_enabled": cfg.memory_enabled,

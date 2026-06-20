@@ -46,7 +46,7 @@ BANNER = """
  ╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═════╝ ╚══════╝[/bold cyan]
 
 [dim]The operating system between applications and AI[/dim]
-[dim]v0.1.0 · github.com/aicos-dev/aicos[/dim]
+[dim]v0.2.0 · github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-[/dim]
 """
 
 

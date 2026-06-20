@@ -111,24 +111,26 @@ class EmbeddingEngine:
         self._cache: dict[str, np.ndarray] = {}
 
     def _load_model(self, model_name: str | None, dim: int) -> EmbeddingModel:
-        if model_name:
-            try:
-                from sentence_transformers import SentenceTransformer
+        # Use sentence-transformers when available for true semantic similarity.
+        # Falls back to HashEmbeddingModel when ST is not installed (zero-dep path).
+        target = model_name or "all-MiniLM-L6-v2"
+        try:
+            from sentence_transformers import SentenceTransformer
 
-                class STModel:
-                    def __init__(self, name: str) -> None:
-                        self._model = SentenceTransformer(name)
+            class STModel:
+                def __init__(self, name: str) -> None:
+                    self._model = SentenceTransformer(name)
 
-                    @property
-                    def dim(self) -> int:
-                        return int(self._model.get_sentence_embedding_dimension() or 384)
+                @property
+                def dim(self) -> int:
+                    return int(self._model.get_sentence_embedding_dimension() or 384)
 
-                    def encode(self, texts: list[str]) -> np.ndarray:
-                        return np.array(self._model.encode(texts, normalize_embeddings=True))
+                def encode(self, texts: list[str]) -> np.ndarray:
+                    return np.array(self._model.encode(texts, normalize_embeddings=True))
 
-                return STModel(model_name)
-            except ImportError:
-                pass
+            return STModel(target)
+        except (ImportError, Exception):
+            pass
 
         return HashEmbeddingModel(dim=dim)
 
