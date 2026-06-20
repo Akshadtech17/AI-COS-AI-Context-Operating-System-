@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -161,3 +162,111 @@ class TestSemanticCache:
         assert result is not None
         assert result.latency_ms < 1000  # Should be fast
         assert result.latency_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_semantic_hit_returns_cached_response(
+        self, sqlite_cache: SQLiteCache
+    ) -> None:
+        """Lines 91-92: best_score >= threshold branch returns a semantic CacheResult.
+
+        Uses mocked embeddings so any two distinct prompts appear maximally similar
+        (cosine similarity = 1.0). The exact hash lookup misses (different prompt text)
+        and falls through to the semantic scan, which then exceeds the threshold.
+        """
+        fixed_vec = np.ones(10, dtype=np.float32)
+        fixed_vec /= np.linalg.norm(fixed_vec)
+
+        mock_emb = MagicMock()
+        mock_emb.embed = MagicMock(return_value=fixed_vec)
+        mock_emb.batch_similarity = MagicMock(
+            side_effect=lambda q, matrix: np.ones(len(matrix), dtype=np.float32)
+        )
+
+        cache = SemanticCache(
+            sqlite_cache=sqlite_cache,
+            embedding_engine=mock_emb,
+            threshold=0.95,
+        )
+
+        await cache.set("What is 2 plus 2?", "The answer is 4")
+        # Different text → different hash → exact miss → semantic path
+        result = await cache.get("What does 2 + 2 equal?")
+
+        assert result is not None
+        assert result.hit_type == "semantic"
+        assert result.response == "The answer is 4"
+        assert result.similarity >= 0.95
+
+    @pytest.mark.asyncio
+    async def test_semantic_hit_latency_is_populated(
+        self, sqlite_cache: SQLiteCache
+    ) -> None:
+        """CacheResult.latency_ms is set on a semantic hit."""
+        fixed_vec = np.ones(10, dtype=np.float32) / np.sqrt(10)
+        mock_emb = MagicMock()
+        mock_emb.embed = MagicMock(return_value=fixed_vec)
+        mock_emb.batch_similarity = MagicMock(
+            side_effect=lambda q, matrix: np.ones(len(matrix), dtype=np.float32)
+        )
+        cache = SemanticCache(sqlite_cache=sqlite_cache, embedding_engine=mock_emb, threshold=0.5)
+
+        await cache.set("original prompt text", "cached response")
+        result = await cache.get("a different prompt text")
+
+        assert result is not None
+        assert result.latency_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_semantic_below_threshold_returns_none(
+        self, sqlite_cache: SQLiteCache
+    ) -> None:
+        """Line 100: candidates exist but best_score < threshold → None."""
+        fixed_vec = np.ones(10, dtype=np.float32) / np.sqrt(10)
+        mock_emb = MagicMock()
+        mock_emb.embed = MagicMock(return_value=fixed_vec)
+        # Similarity below threshold → no semantic hit
+        mock_emb.batch_similarity = MagicMock(
+            side_effect=lambda q, matrix: np.full(len(matrix), 0.50, dtype=np.float32)
+        )
+        cache = SemanticCache(sqlite_cache=sqlite_cache, embedding_engine=mock_emb, threshold=0.95)
+
+        await cache.set("stored prompt", "stored response")
+        result = await cache.get("different prompt")  # exact miss, score 0.50 < 0.95
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_invalidate_removes_entry(self, semantic_cache: SemanticCache) -> None:
+        """Lines 124-126: invalidate() deletes the entry and marks _index_dirty."""
+        await semantic_cache.set("Remember this", "Some response")
+
+        deleted = await semantic_cache.invalidate("Remember this")
+
+        assert deleted is True
+        assert semantic_cache._index_dirty is True
+        # Exact lookup must now miss; no other entries → get() returns None
+        result = await semantic_cache.get("Remember this")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_invalidate_nonexistent_returns_false(
+        self, semantic_cache: SemanticCache
+    ) -> None:
+        """invalidate() on an unknown prompt returns False."""
+        deleted = await semantic_cache.invalidate("this was never stored xyz999")
+        assert deleted is False
+
+    @pytest.mark.asyncio
+    async def test_stats_returns_threshold_and_scan_limit(
+        self, semantic_cache: SemanticCache
+    ) -> None:
+        """Lines 135-138: stats() extends SQLiteCache stats with threshold and scan_limit."""
+        await semantic_cache.set("A prompt", "A response")
+
+        stats = await semantic_cache.stats()
+
+        assert "threshold" in stats
+        assert "scan_limit" in stats
+        assert stats["threshold"] == 0.96  # matches conftest fixture value
+        assert isinstance(stats["scan_limit"], int)
+        assert stats["scan_limit"] > 0
