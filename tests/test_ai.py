@@ -17,7 +17,11 @@ from aicos.providers.base import ProviderResponse, StreamChunk
 @pytest.fixture
 def ai_config(tmp_path):
     return AICOSConfig(
-        openai_api_key="sk-test-key",
+        openrouter_api_key="sk-or-test-key",
+        openai_api_key=None,
+        anthropic_api_key=None,
+        gemini_api_key=None,
+        nvidia_api_key=None,
         db_path=str(tmp_path / "aicos.db"),
         cache_enabled=True,
         memory_enabled=True,
@@ -36,7 +40,7 @@ def mock_prov():
 @pytest.fixture
 def ai(ai_config, mock_prov):
     instance = AI(config=ai_config)
-    instance._build_providers = MagicMock(return_value={"openai": mock_prov})
+    instance._build_providers = MagicMock(return_value={"openrouter": mock_prov})
     return instance
 
 
@@ -236,12 +240,12 @@ class TestAIAnalytics:
 # ── Provider building ─────────────────────────────────────────────────────────
 
 class TestBuildProviders:
-    def test_build_providers_openai_key_present(self, ai_config) -> None:
-        # ai_config has openai_api_key="sk-test-key"
+    def test_build_providers_openrouter_key_present(self, ai_config) -> None:
+        # ai_config has openrouter_api_key set
         with patch("openai.AsyncOpenAI"):
             instance = AI(config=ai_config)
             providers = instance._build_providers()
-        assert "openai" in providers
+        assert "openrouter" in providers
 
     def test_build_providers_nvidia(self, tmp_path) -> None:
         cfg = AICOSConfig(

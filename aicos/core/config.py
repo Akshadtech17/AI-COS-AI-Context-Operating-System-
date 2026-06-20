@@ -39,7 +39,12 @@ class AICOSConfig(BaseSettings):
     # ── Router ──────────────────────────────────────────────────────────────
     router_strategy: Literal["auto", "cheapest", "fastest", "best"] = Field("auto")
     default_model: str | None = Field(None)
-    fallback_models: list[str] = Field(default_factory=lambda: ["gpt-4o-mini", "claude-haiku-4-5-20251001"])
+    fallback_models: list[str] = Field(
+        default_factory=lambda: [
+            "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+            "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        ]
+    )
 
     # ── Cache ────────────────────────────────────────────────────────────────
     cache_enabled: bool = Field(True)

@@ -38,141 +38,27 @@ class ModelSpec:
 
 # ── Model Registry ────────────────────────────────────────────────────────────
 MODEL_REGISTRY: dict[str, ModelSpec] = {
-    # OpenAI
-    "gpt-4o-mini": ModelSpec(
-        model_id="gpt-4o-mini",
-        provider="openai",
-        input_cost_per_1m=0.15,
-        output_cost_per_1m=0.60,
-        max_tokens=128_000,
-        capabilities={"text", "code", "vision", "json"},
-        avg_latency_ms=800,
-        tier="cheap",
-    ),
-    "gpt-4o": ModelSpec(
-        model_id="gpt-4o",
-        provider="openai",
-        input_cost_per_1m=2.50,
-        output_cost_per_1m=10.00,
-        max_tokens=128_000,
-        capabilities={"text", "code", "vision", "json", "reasoning"},
-        avg_latency_ms=1500,
-        tier="premium",
-    ),
-    "gpt-4-turbo": ModelSpec(
-        model_id="gpt-4-turbo",
-        provider="openai",
-        input_cost_per_1m=10.00,
-        output_cost_per_1m=30.00,
-        max_tokens=128_000,
-        capabilities={"text", "code", "vision", "json", "reasoning"},
-        avg_latency_ms=2000,
-        tier="premium",
-    ),
-    "o1-mini": ModelSpec(
-        model_id="o1-mini",
-        provider="openai",
-        input_cost_per_1m=3.00,
-        output_cost_per_1m=12.00,
-        max_tokens=128_000,
-        capabilities={"text", "code", "reasoning", "math"},
-        avg_latency_ms=5000,
-        tier="mid",
-    ),
-    # Anthropic
-    "claude-haiku-4-5-20251001": ModelSpec(
-        model_id="claude-haiku-4-5-20251001",
-        provider="anthropic",
-        input_cost_per_1m=0.25,
-        output_cost_per_1m=1.25,
-        max_tokens=200_000,
-        capabilities={"text", "code", "json"},
-        avg_latency_ms=600,
-        tier="cheap",
-    ),
-    "claude-sonnet-4-6": ModelSpec(
-        model_id="claude-sonnet-4-6",
-        provider="anthropic",
-        input_cost_per_1m=3.00,
-        output_cost_per_1m=15.00,
-        max_tokens=200_000,
-        capabilities={"text", "code", "vision", "json", "reasoning", "analysis"},
-        avg_latency_ms=1200,
-        tier="mid",
-    ),
-    "claude-opus-4-8": ModelSpec(
-        model_id="claude-opus-4-8",
-        provider="anthropic",
-        input_cost_per_1m=15.00,
-        output_cost_per_1m=75.00,
-        max_tokens=200_000,
-        capabilities={"text", "code", "vision", "json", "reasoning", "analysis", "agent"},
-        avg_latency_ms=3000,
-        tier="premium",
-    ),
-    # Google
-    "gemini/gemini-2.0-flash": ModelSpec(
-        model_id="gemini/gemini-2.0-flash",
-        provider="gemini",
-        input_cost_per_1m=0.10,
-        output_cost_per_1m=0.40,
-        max_tokens=1_000_000,
-        capabilities={"text", "code", "vision", "json"},
-        avg_latency_ms=700,
-        tier="cheap",
-    ),
-    "gemini/gemini-1.5-pro": ModelSpec(
-        model_id="gemini/gemini-1.5-pro",
-        provider="gemini",
-        input_cost_per_1m=1.25,
-        output_cost_per_1m=5.00,
-        max_tokens=2_000_000,
-        capabilities={"text", "code", "vision", "json", "reasoning"},
-        avg_latency_ms=1500,
-        tier="mid",
-    ),
-    # NVIDIA Nemotron via direct API (nvapi-... key)
+    # NVIDIA Nemotron Ultra via direct API (nvapi-... key)
     "nvidia/llama-3.1-nemotron-ultra-253b-v1": ModelSpec(
         model_id="nvidia/llama-3.1-nemotron-ultra-253b-v1",
         provider="nvidia",
         input_cost_per_1m=0.0,
         output_cost_per_1m=0.0,
         max_tokens=128_000,
-        capabilities={"text", "code", "reasoning", "analysis", "json"},
+        capabilities={"text", "code", "reasoning", "analysis", "json", "vision"},
         avg_latency_ms=2500,
         tier="free",
     ),
-    # NVIDIA Nemotron via OpenRouter (sk-or-... key)
+    # NVIDIA Nemotron Ultra via OpenRouter (sk-or-... key)
     "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1": ModelSpec(
         model_id="nvidia/llama-3.1-nemotron-ultra-253b-v1",
         provider="openrouter",
         input_cost_per_1m=0.0,
         output_cost_per_1m=0.0,
         max_tokens=128_000,
-        capabilities={"text", "code", "reasoning", "analysis", "json"},
+        capabilities={"text", "code", "reasoning", "analysis", "json", "vision"},
         avg_latency_ms=2500,
         tier="free",
-    ),
-    # Ollama (local, free)
-    "ollama/llama3.2": ModelSpec(
-        model_id="ollama/llama3.2",
-        provider="ollama",
-        input_cost_per_1m=0.0,
-        output_cost_per_1m=0.0,
-        max_tokens=128_000,
-        capabilities={"text", "code"},
-        avg_latency_ms=2000,
-        tier="local",
-    ),
-    "ollama/codellama": ModelSpec(
-        model_id="ollama/codellama",
-        provider="ollama",
-        input_cost_per_1m=0.0,
-        output_cost_per_1m=0.0,
-        max_tokens=16_000,
-        capabilities={"code"},
-        avg_latency_ms=3000,
-        tier="local",
     ),
 }
 
@@ -187,15 +73,15 @@ TASK_CAPABILITY_MAP: dict[TaskType, list[str]] = {
     TaskType.AGENT: ["agent"],
 }
 
-# Task → preferred tier  ("free" = NVIDIA Nemotron — powerful and $0)
+# Only one tier now — all tasks route to Nemotron
 TASK_TIER_PREFERENCE: dict[TaskType, list[str]] = {
-    TaskType.SIMPLE: ["free", "cheap", "local", "mid"],
-    TaskType.CODING: ["free", "mid", "cheap", "premium"],
-    TaskType.VISION: ["mid", "premium"],
-    TaskType.REASONING: ["free", "premium", "mid"],
-    TaskType.CREATIVE: ["free", "mid", "cheap"],
-    TaskType.ANALYSIS: ["free", "premium", "mid"],
-    TaskType.AGENT: ["free", "premium", "mid"],
+    TaskType.SIMPLE: ["free"],
+    TaskType.CODING: ["free"],
+    TaskType.VISION: ["free"],
+    TaskType.REASONING: ["free"],
+    TaskType.CREATIVE: ["free"],
+    TaskType.ANALYSIS: ["free"],
+    TaskType.AGENT: ["free"],
 }
 
 # Patterns for task classification

@@ -71,8 +71,9 @@ class TestModelSelection:
 
     def test_override_model(self, router: ModelRouter) -> None:
         messages = [{"role": "user", "content": "Hello"}]
-        decision = router.select_model(messages, override_model="gpt-4o-mini")
-        assert decision.model == "gpt-4o-mini"
+        model = "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1"
+        decision = router.select_model(messages, override_model=model)
+        assert decision.model == model
         assert "override" in decision.reasoning.lower()
 
     def test_cheapest_strategy(self, config: AICOSConfig) -> None:
@@ -109,15 +110,22 @@ class TestModelSelection:
 
 class TestCostEstimation:
     def test_known_model_cost(self, router: ModelRouter) -> None:
-        cost = router.estimate_cost("gpt-4o-mini", input_tokens=1000, output_tokens=100)
-        # gpt-4o-mini: $0.15/1M input, $0.60/1M output
-        expected = (1000 * 0.15 + 100 * 0.60) / 1_000_000
-        assert abs(cost - expected) < 1e-10
+        # Nemotron is free
+        cost = router.estimate_cost(
+            "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+            input_tokens=1000,
+            output_tokens=100,
+        )
+        assert cost == 0.0
 
     def test_unknown_model_cost(self, router: ModelRouter) -> None:
         cost = router.estimate_cost("unknown-model", input_tokens=1000, output_tokens=100)
         assert cost == 0.0
 
     def test_zero_tokens(self, router: ModelRouter) -> None:
-        cost = router.estimate_cost("gpt-4o-mini", input_tokens=0, output_tokens=0)
+        cost = router.estimate_cost(
+            "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+            input_tokens=0,
+            output_tokens=0,
+        )
         assert cost == 0.0
