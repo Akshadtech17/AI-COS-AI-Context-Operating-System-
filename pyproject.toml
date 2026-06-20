@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aicos"
-version = "0.4.0"
+version = "0.5.0"
 description = "The operating system between applications and AI"
 readme = "README.md"
 license = { text = "MIT" }
@@ -59,9 +59,17 @@ dependencies = [
 
 [project.optional-dependencies]
 postgres = ["asyncpg>=0.30.0"]
+pgvector = ["pgvector>=0.3.0"]
 redis = ["redis>=5.2.0", "hiredis>=3.1.0"]
 vector = ["chromadb>=0.5.0", "faiss-cpu>=1.9.0"]
 embeddings = ["sentence-transformers>=3.3.0"]
+otel = [
+    "opentelemetry-sdk>=1.26.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.26.0",
+    "opentelemetry-instrumentation-fastapi>=0.47b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.47b0",
+]
+sentry = ["sentry-sdk[fastapi,sqlalchemy]>=2.16.0"]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
@@ -72,7 +80,7 @@ dev = [
     "mypy>=1.13.0",
     "pre-commit>=4.0.0",
 ]
-all = ["aicos[postgres,redis,vector,embeddings,dev]"]
+all = ["aicos[postgres,pgvector,redis,vector,embeddings,otel,sentry,dev]"]
 
 [project.scripts]
 aicos = "aicos.cli.main:app"

@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    service: aicos-gateway
+
+scrape_configs:
+  - job_name: aicos
+    static_configs:
+      - targets: ["aicos:4000"]
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: pgbouncer
+    static_configs:
+      - targets: ["pgbouncer_exporter:9127"]
+    scrape_interval: 30s
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis_exporter:9121"]
+    scrape_interval: 30s

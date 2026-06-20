@@ -5,7 +5,9 @@ Endpoints:
   POST /v1/chat/completions  — OpenAI-compatible chat (streaming + non-streaming)
   GET  /v1/models            — List available models
   GET  /metrics              — Prometheus metrics
-  GET  /health               — Deep health check (probes each provider)
+  GET  /ready                — Kubernetes readiness probe (fast, no external calls)
+  GET  /live                 — Kubernetes liveness probe (always 200 if process alive)
+  GET  /health               — Deep health check (probes each provider, ~5 s)
   GET  /stats                — JSON stats overview
   POST /v1/memory            — Store a memory
   GET  /v1/memory/search     — Search memories
@@ -32,7 +34,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 _DASHBOARD_HTML = Path(__file__).parent / "templates" / "dashboard.html"
-_VERSION = "0.4.0"
+_VERSION = "0.5.0"
 
 from aicos.analytics.cost_tracker import CostTracker
 from aicos.analytics.metrics import get_metrics
@@ -48,6 +50,7 @@ from aicos.core.config import AICOSConfig, get_config
 from aicos.core.gateway import AIGateway, GatewayRequest
 from aicos.core.logging import configure_logging, get_logger
 from aicos.core.router import MODEL_REGISTRY, ModelRouter
+from aicos.core.telemetry import configure_telemetry
 from aicos.memory.embeddings import EmbeddingEngine
 from aicos.memory.memory_store import MemoryStore
 from aicos.memory.retrieval import MemoryRetriever
@@ -198,6 +201,10 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
     cfg = config or get_config()
 
     configure_logging(level=cfg.log_level, json_format=getattr(cfg, "log_json", False))
+    configure_telemetry(
+        otel_endpoint=getattr(cfg, "otel_endpoint", None),
+        sentry_dsn=getattr(cfg, "sentry_dsn", None),
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -323,11 +330,31 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
 
     # ── Health & Observability ────────────────────────────────────────────
 
+    @app.get("/ready")
+    async def ready() -> dict[str, str]:
+        """
+        Kubernetes readiness probe — sub-millisecond, no external calls.
+        Returns 200 only after the gateway has fully initialised.
+        Use this as the readinessProbe target in pod specs.
+        """
+        if _gateway is None:
+            raise HTTPException(status_code=503, detail="Gateway not ready")
+        return {"status": "ready"}
+
+    @app.get("/live")
+    async def live() -> dict[str, str]:
+        """
+        Kubernetes liveness probe — always 200 if the process is alive.
+        Use this as the livenessProbe target in pod specs.
+        """
+        return {"status": "alive", "version": _VERSION}
+
     @app.get("/health")
     async def health() -> dict[str, Any]:
         """
         Deep health check — probes each configured provider (5-second timeout).
         Returns status='ok' if at least one provider responds, 'degraded' otherwise.
+        Use this for monitoring dashboards, not for Kubernetes probes.
         """
         provider_health: dict[str, str] = {}
         gw = _gateway

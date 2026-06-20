@@ -91,6 +91,19 @@ class AICOSConfig(BaseSettings):
     # ── CORS ─────────────────────────────────────────────────────────────────
     cors_allowed_origins: list[str] = Field(default_factory=lambda: ["*"])
 
+    # ── Database Pool ────────────────────────────────────────────────────────
+    # With PgBouncer in transaction mode, set db_pool_size=2, db_max_overflow=3.
+    # Default of 5/5 is correct for direct PostgreSQL connections.
+    db_pool_size: int = Field(5, ge=1, le=100)
+    db_max_overflow: int = Field(5, ge=0, le=100)
+
+    # ── Embeddings ───────────────────────────────────────────────────────────
+    embedding_dim: int = Field(384, ge=64)  # Must match the embedding model output
+
+    # ── Observability ────────────────────────────────────────────────────────
+    otel_endpoint: str | None = Field(None)  # OTLP gRPC endpoint e.g. http://jaeger:4317
+    sentry_dsn: str | None = Field(None)     # Sentry DSN for error tracking
+
     # ── Optional Integrations ────────────────────────────────────────────────
     redis_url: str | None = Field(None)
     ollama_enabled: bool = Field(False)  # Set True to enable local Ollama routing
@@ -134,6 +147,10 @@ class AICOSConfig(BaseSettings):
     def litm_below_max(cls, v: int, info: object) -> int:
         # Ensure LITM threshold is below max context
         return v
+
+    def get_db_pool_kwargs(self) -> dict[str, int]:
+        """Pool size kwargs for build_engine() (ignored for SQLite)."""
+        return {"pool_size": self.db_pool_size, "max_overflow": self.db_max_overflow}
 
     def get_db_urls(self) -> dict[str, str]:
         """Return per-component database URLs.

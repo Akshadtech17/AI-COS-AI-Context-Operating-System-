@@ -11,5 +11,5 @@ Usage:
 from aicos.core.ai import AI
 from aicos.core.config import AICOSConfig, get_config
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = ["AI", "AICOSConfig", "get_config"]

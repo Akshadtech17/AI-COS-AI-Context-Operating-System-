@@ -155,7 +155,7 @@ class TestHealthEndpoint:
         assert r.status_code == 200
         data = r.json()
         assert data["status"] == "ok"
-        assert data["version"] == "0.4.0"
+        assert data["version"] == "0.5.0"
 
     def test_health_lists_providers(self, client) -> None:
         c, _ = client
@@ -363,7 +363,7 @@ class TestCORS:
         c, _ = client
         r = c.get("/openapi.json")
         assert r.status_code == 200
-        assert r.json()["info"]["version"] == "0.4.0"
+        assert r.json()["info"]["version"] == "0.5.0"
 
 
 # ── Streaming ─────────────────────────────────────────────────────────────────
