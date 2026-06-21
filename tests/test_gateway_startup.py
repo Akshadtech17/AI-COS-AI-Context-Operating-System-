@@ -32,6 +32,7 @@ async def _cleanup(gateway, memory_store) -> None:
     await memory_store.close()
     if gateway._cache is not None:
         await gateway._cache._cache.close()
+    await gateway.close()  # disposes cost_tracker's SQLAlchemy engine
 
 
 class TestBuildGateway:
