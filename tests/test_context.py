@@ -166,10 +166,10 @@ class TestHistoryManager:
         )
         # Middle messages need to exceed max_tokens (500) so final compression fires
         messages = [
-            {"role": "user", "content": para * 15},      # middle (~225 tokens)
-            {"role": "assistant", "content": para * 15}, # middle (~225 tokens)
-            {"role": "user", "content": para},            # preserved
-            {"role": "assistant", "content": para},       # preserved
+            {"role": "user", "content": para * 15},  # middle (~225 tokens)
+            {"role": "assistant", "content": para * 15},  # middle (~225 tokens)
+            {"role": "user", "content": para},  # preserved
+            {"role": "assistant", "content": para},  # preserved
             {"role": "user", "content": "Final question"},
             {"role": "assistant", "content": "Final answer"},
         ]
@@ -204,10 +204,12 @@ class TestHistoryManager:
         ]
         truncated = history_manager.truncate_to_budget(messages, budget=50)
         from aicos.context.compressor import count_message_tokens
+
         assert count_message_tokens(truncated) <= 80  # Some tolerance
 
 
 # ── Targeted branch coverage ──────────────────────────────────────────────────
+
 
 class TestTokenCountingEdgeCases:
     def test_unknown_model_fallback(self) -> None:
@@ -374,6 +376,7 @@ class TestCompressMessageEdgeCases:
 
 # ── HistoryManager LITM and summarizer paths ──────────────────────────────────
 
+
 class TestHistoryManagerLITM:
     @pytest.mark.asyncio
     async def test_not_enough_turns_falls_back_to_compression(self) -> None:
@@ -383,7 +386,7 @@ class TestHistoryManagerLITM:
             compressor=compressor,
             summarizer=None,
             litm_threshold_tokens=5,  # extremely low to force processing
-            preserve_turns=10,        # high so conv_msgs <= min_conv always
+            preserve_turns=10,  # high so conv_msgs <= min_conv always
         )
         msgs = [
             {"role": "user", "content": "Short A"},
@@ -397,10 +400,9 @@ class TestHistoryManagerLITM:
     async def test_summarizer_success_produces_recap(self) -> None:
         """Lines 99-106, 109-113: summarizer returns text → recap injected."""
         from aicos.context.summarizer import ConversationSummarizer
+
         mock_summarizer = MagicMock(spec=ConversationSummarizer)
-        mock_summarizer.summarize_turns = AsyncMock(
-            return_value="Summary of earlier conversation."
-        )
+        mock_summarizer.summarize_turns = AsyncMock(return_value="Summary of earlier conversation.")
 
         compressor = ContextCompressor(max_tokens=8000)
         manager = HistoryManager(
@@ -421,20 +423,16 @@ class TestHistoryManagerLITM:
         state = await manager.process(msgs)
         assert state.litm_applied
         assert state.recap_injected
-        recap_msgs = [
-            m for m in state.messages
-            if "Context Recap" in str(m.get("content", ""))
-        ]
+        recap_msgs = [m for m in state.messages if "Context Recap" in str(m.get("content", ""))]
         assert len(recap_msgs) == 1
 
     @pytest.mark.asyncio
     async def test_summarizer_failure_falls_back_to_extractive(self) -> None:
         """Lines 104-106: summarizer raises → extractive fallback, litm_applied=False."""
         from aicos.context.summarizer import ConversationSummarizer
+
         mock_summarizer = MagicMock(spec=ConversationSummarizer)
-        mock_summarizer.summarize_turns = AsyncMock(
-            side_effect=RuntimeError("LLM unavailable")
-        )
+        mock_summarizer.summarize_turns = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
 
         compressor = ContextCompressor(max_tokens=8000)
         manager = HistoryManager(

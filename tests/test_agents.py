@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from aicos.agents.base_agent import AgentResult, BaseAgent, MaxStepsExceeded, Tool
+from aicos.agents.base_agent import AgentResult, BaseAgent, MaxStepsExceededError, Tool
 from aicos.core.gateway import AIGateway
 
-
 # ── Tool ─────────────────────────────────────────────────────────────────────
+
 
 class TestTool:
     @pytest.mark.asyncio
@@ -44,6 +44,7 @@ class TestTool:
 
 # ── AgentResult ───────────────────────────────────────────────────────────────
 
+
 class TestAgentResult:
     def test_agent_result_success(self) -> None:
         result = AgentResult(
@@ -72,23 +73,24 @@ class TestAgentResult:
         assert result.error == "API error"
 
 
-# ── MaxStepsExceeded ──────────────────────────────────────────────────────────
+# ── MaxStepsExceededError ──────────────────────────────────────────────────────────
 
-class TestMaxStepsExceeded:
+
+class TestMaxStepsExceededError:
     def test_is_exception(self) -> None:
-        exc = MaxStepsExceeded("too many steps")
+        exc = MaxStepsExceededError("too many steps")
         assert isinstance(exc, Exception)
         assert str(exc) == "too many steps"
 
 
 # ── BaseAgent ─────────────────────────────────────────────────────────────────
 
+
 class TestBaseAgent:
     @pytest.fixture
     def mock_gateway(self, mock_provider):
-        from aicos.analytics.cost_tracker import CostTracker
         from aicos.core.config import AICOSConfig
-        from aicos.core.router import ModelRouter
+
         cfg = MagicMock(spec=AICOSConfig)
         cfg.router_strategy = "auto"
         cfg.default_model = None
@@ -96,8 +98,10 @@ class TestBaseAgent:
         cfg.available_providers.return_value = ["openai"]
         router = MagicMock()
         router.select_model.return_value = MagicMock(
-            model="gpt-4o-mini", provider="openai",
-            task_type=MagicMock(value="simple"), reasoning="mock"
+            model="gpt-4o-mini",
+            provider="openai",
+            task_type=MagicMock(value="simple"),
+            reasoning="mock",
         )
         gw = MagicMock(spec=AIGateway)
         return gw

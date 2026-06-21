@@ -14,10 +14,10 @@ import hashlib
 import secrets
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, Float, Integer, String, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from aicos.core.database import build_engine
@@ -101,7 +101,7 @@ class APIKeyStore:
             id=row.id,
             name=row.name,
             prefix=row.prefix,
-            created_at=datetime.fromtimestamp(now, tz=timezone.utc),
+            created_at=datetime.fromtimestamp(now, tz=UTC),
             last_used_at=None,
             is_active=True,
             scopes=scope_str.split(","),
@@ -128,9 +128,7 @@ class APIKeyStore:
     async def revoke(self, key_id: int) -> bool:
         """Revoke a key by ID. Returns True if found and revoked."""
         async with self._sessions() as session:
-            result = await session.execute(
-                select(_APIKeyRow).where(_APIKeyRow.id == key_id)
-            )
+            result = await session.execute(select(_APIKeyRow).where(_APIKeyRow.id == key_id))
             row = result.scalar_one_or_none()
             if not row:
                 return False
@@ -157,11 +155,9 @@ def _row_to_key(row: _APIKeyRow) -> APIKey:
         id=row.id,
         name=row.name,
         prefix=row.prefix,
-        created_at=datetime.fromtimestamp(row.created_at, tz=timezone.utc),
+        created_at=datetime.fromtimestamp(row.created_at, tz=UTC),
         last_used_at=(
-            datetime.fromtimestamp(row.last_used_at, tz=timezone.utc)
-            if row.last_used_at
-            else None
+            datetime.fromtimestamp(row.last_used_at, tz=UTC) if row.last_used_at else None
         ),
         is_active=row.is_active,
         scopes=row.scopes.split(","),

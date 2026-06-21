@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
 
@@ -12,6 +13,7 @@ from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
 class AnthropicProvider(BaseProvider):
     def __init__(self, api_key: str) -> None:
         import anthropic
+
         self._client = anthropic.AsyncAnthropic(api_key=api_key)
 
     @property
@@ -49,17 +51,14 @@ class AnthropicProvider(BaseProvider):
             model=model,
             system=system_text or "You are a helpful assistant.",
             messages=[  # type: ignore[arg-type]
-                {"role": m["role"], "content": m.get("content", "")}
-                for m in conv_parts
+                {"role": m["role"], "content": m.get("content", "")} for m in conv_parts
             ],
             max_tokens=max_tokens,
             temperature=temperature,
             **kwargs,
         )
 
-        content = "".join(
-            block.text for block in response.content if hasattr(block, "text")
-        )
+        content = "".join(block.text for block in response.content if hasattr(block, "text"))
 
         return ProviderResponse(
             content=content,
@@ -86,8 +85,7 @@ class AnthropicProvider(BaseProvider):
             model=model,
             system=system_text or "You are a helpful assistant.",
             messages=[  # type: ignore[arg-type]
-                {"role": m["role"], "content": m.get("content", "")}
-                for m in conv_parts
+                {"role": m["role"], "content": m.get("content", "")} for m in conv_parts
             ],
             max_tokens=max_tokens,
             temperature=temperature,

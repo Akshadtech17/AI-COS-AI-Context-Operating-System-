@@ -10,12 +10,11 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
-from sqlalchemy import String, Float, Integer, Text, DateTime, Index, select, func, delete
+from sqlalchemy import DateTime, Index, Integer, String, Text, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -60,7 +59,7 @@ class CacheRow(Base):
         if created.tzinfo is None:
             now = datetime.utcnow()
         else:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
         age = (now - created).total_seconds()
         return age > self.ttl_seconds
 
@@ -88,9 +87,7 @@ class SQLiteCache:
         self._max_size = max_size
         self._ttl_seconds = ttl_seconds
         self._engine = build_engine(database_url)
-        self._session_factory = async_sessionmaker(
-            self._engine, expire_on_commit=False
-        )
+        self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
 
     async def initialize(self) -> None:
         async with self._engine.begin() as conn:
@@ -113,7 +110,7 @@ class SQLiteCache:
 
             # Update hit count
             row.hit_count += 1
-            row.last_hit_at = datetime.now(timezone.utc)
+            row.last_hit_at = datetime.now(UTC)
             await session.commit()
 
             return CacheEntry(
@@ -142,7 +139,6 @@ class SQLiteCache:
             result = await session.execute(stmt)
             rows = result.scalars().all()
 
-        now = datetime.now(timezone.utc)
         return [
             CacheEntry(
                 id=row.id,
@@ -171,7 +167,7 @@ class SQLiteCache:
     ) -> None:
         """Store a cache entry, replacing if exists."""
         prompt_hash = self.make_key(prompt, context_hash)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         async with self._session_factory() as session:
             existing = await session.scalar(
@@ -208,9 +204,7 @@ class SQLiteCache:
 
     async def invalidate(self, prompt_hash: str) -> bool:
         async with self._session_factory() as session:
-            row = await session.scalar(
-                select(CacheRow).where(CacheRow.prompt_hash == prompt_hash)
-            )
+            row = await session.scalar(select(CacheRow).where(CacheRow.prompt_hash == prompt_hash))
             if not row:
                 return False
             await session.delete(row)

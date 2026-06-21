@@ -10,7 +10,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache
 from threading import Lock
-from typing import Iterator
 
 
 @dataclass
@@ -30,9 +29,10 @@ class Counter:
 @dataclass
 class Histogram:
     """Simple histogram with fixed buckets for latency tracking."""
-    buckets: list[float] = field(default_factory=lambda: [
-        5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000
-    ])
+
+    buckets: list[float] = field(
+        default_factory=lambda: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
+    )
     _counts: dict[float, int] = field(default_factory=dict)
     _sum: float = 0.0
     _count: int = 0
@@ -202,7 +202,7 @@ class MetricsCollector:
             lines.append(f"# HELP aicos_{name} {help_text}")
             lines.append(f"# TYPE aicos_{name} gauge")
             if labels:
-                lines.append(f'aicos_{name}{{{labels}}} {value}')
+                lines.append(f"aicos_{name}{{{labels}}} {value}")
             else:
                 lines.append(f"aicos_{name} {value}")
 
@@ -210,7 +210,7 @@ class MetricsCollector:
             lines.append(f"# HELP aicos_{name}_total {help_text}")
             lines.append(f"# TYPE aicos_{name}_total counter")
             if labels:
-                lines.append(f'aicos_{name}_total{{{labels}}} {value}')
+                lines.append(f"aicos_{name}_total{{{labels}}} {value}")
             else:
                 lines.append(f"aicos_{name}_total {value}")
 
@@ -226,7 +226,9 @@ class MetricsCollector:
         counter("memory_retrieved", self.memory_retrieved.value, "Total memories retrieved")
 
         gauge("cache_hit_rate", round(self.cache_hit_rate, 4), "Cache hit rate (0-1)")
-        gauge("compression_ratio", round(self.compression_ratio, 4), "Token compression ratio (0-1)")
+        gauge(
+            "compression_ratio", round(self.compression_ratio, 4), "Token compression ratio (0-1)"
+        )
         gauge("uptime_seconds", round(self.uptime_seconds, 2), "Uptime in seconds")
 
         gauge(
@@ -247,7 +249,7 @@ class MetricsCollector:
 
         for stage, hist in self.latency_by_stage.items():
             gauge(
-                f"stage_latency_mean_ms",
+                "stage_latency_mean_ms",
                 round(hist.mean, 2),
                 f"Mean {stage} latency",
                 labels=f'stage="{stage}"',

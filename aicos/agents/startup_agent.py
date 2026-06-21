@@ -20,7 +20,6 @@ from typing import Any
 from aicos.agents.base_agent import BaseAgent, Tool
 from aicos.core.gateway import AIGateway, GatewayRequest
 
-
 STARTUP_SYSTEM_PROMPT = """\
 You are an elite startup advisor and business analyst with expertise in:
 - Market sizing and opportunity assessment

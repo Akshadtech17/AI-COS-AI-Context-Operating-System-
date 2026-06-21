@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
-import pytest_asyncio
 
 from aicos.cache.semantic_cache import SemanticCache
 from aicos.cache.sqlite_cache import SQLiteCache
@@ -164,9 +161,7 @@ class TestSemanticCache:
         assert result.latency_ms >= 0
 
     @pytest.mark.asyncio
-    async def test_semantic_hit_returns_cached_response(
-        self, sqlite_cache: SQLiteCache
-    ) -> None:
+    async def test_semantic_hit_returns_cached_response(self, sqlite_cache: SQLiteCache) -> None:
         """Lines 91-92: best_score >= threshold branch returns a semantic CacheResult.
 
         Uses mocked embeddings so any two distinct prompts appear maximally similar
@@ -198,9 +193,7 @@ class TestSemanticCache:
         assert result.similarity >= 0.95
 
     @pytest.mark.asyncio
-    async def test_semantic_hit_latency_is_populated(
-        self, sqlite_cache: SQLiteCache
-    ) -> None:
+    async def test_semantic_hit_latency_is_populated(self, sqlite_cache: SQLiteCache) -> None:
         """CacheResult.latency_ms is set on a semantic hit."""
         fixed_vec = np.ones(10, dtype=np.float32) / np.sqrt(10)
         mock_emb = MagicMock()
@@ -217,9 +210,7 @@ class TestSemanticCache:
         assert result.latency_ms >= 0
 
     @pytest.mark.asyncio
-    async def test_semantic_below_threshold_returns_none(
-        self, sqlite_cache: SQLiteCache
-    ) -> None:
+    async def test_semantic_below_threshold_returns_none(self, sqlite_cache: SQLiteCache) -> None:
         """Line 100: candidates exist but best_score < threshold → None."""
         fixed_vec = np.ones(10, dtype=np.float32) / np.sqrt(10)
         mock_emb = MagicMock()

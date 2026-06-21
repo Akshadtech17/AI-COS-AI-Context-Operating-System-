@@ -14,20 +14,13 @@ Commands:
 from __future__ import annotations
 
 import asyncio
-import json
-import os
-import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich import box
-from rich.columns import Columns
 from rich.console import Console
-from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 app = typer.Typer(
     name="aicos",
@@ -56,6 +49,7 @@ def _print_banner() -> None:
 
 # ── start ─────────────────────────────────────────────────────────────────────
 
+
 @app.command()
 def start(
     host: str = typer.Option("0.0.0.0", "--host", "-h", help="Gateway host"),
@@ -63,7 +57,7 @@ def start(
     workers: int = typer.Option(1, "--workers", "-w", help="Number of workers"),
     reload: bool = typer.Option(False, "--reload", "-r", help="Auto-reload on changes"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose logging"),
-    env_file: Optional[Path] = typer.Option(None, "--env-file", help="Path to .env file"),
+    env_file: Path | None = typer.Option(None, "--env-file", help="Path to .env file"),
 ) -> None:
     """Start the AI-COS gateway server."""
     try:
@@ -74,11 +68,13 @@ def start(
 
     if env_file:
         from dotenv import load_dotenv
+
         load_dotenv(env_file)
 
     _print_banner()
 
     from aicos.core.config import get_config
+
     cfg = get_config()
 
     # Show configuration table
@@ -88,11 +84,20 @@ def start(
 
     providers = cfg.available_providers()
     config_table.add_row("Gateway", f"http://{host}:{port}")
-    config_table.add_row("Providers", ", ".join(providers) if providers else "[red]None configured[/red]")
+    config_table.add_row(
+        "Providers", ", ".join(providers) if providers else "[red]None configured[/red]"
+    )
     config_table.add_row("Router Strategy", cfg.router_strategy)
-    config_table.add_row("Semantic Cache", "[green]enabled[/green]" if cfg.cache_enabled else "[red]disabled[/red]")
-    config_table.add_row("Memory", "[green]enabled[/green]" if cfg.memory_enabled else "[red]disabled[/red]")
-    config_table.add_row("Context Compression", "[green]enabled[/green]" if cfg.context_compression_enabled else "[red]disabled[/red]")
+    config_table.add_row(
+        "Semantic Cache", "[green]enabled[/green]" if cfg.cache_enabled else "[red]disabled[/red]"
+    )
+    config_table.add_row(
+        "Memory", "[green]enabled[/green]" if cfg.memory_enabled else "[red]disabled[/red]"
+    )
+    config_table.add_row(
+        "Context Compression",
+        "[green]enabled[/green]" if cfg.context_compression_enabled else "[red]disabled[/red]",
+    )
     config_table.add_row("Max Context Tokens", str(cfg.max_context_tokens))
     config_table.add_row("DB Path", cfg.db_path)
 
@@ -116,6 +121,7 @@ def start(
     console.print("[dim]Press Ctrl+C to stop[/dim]\n")
 
     from aicos.api.routes import create_app
+
     gateway_app = create_app(cfg)
 
     uvicorn.run(
@@ -131,11 +137,12 @@ def start(
 
 # ── chat ──────────────────────────────────────────────────────────────────────
 
+
 @app.command()
 def chat(
-    message: Optional[str] = typer.Argument(None, help="Message to send (interactive if omitted)"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Force model"),
-    system: Optional[str] = typer.Option(None, "--system", "-s", help="System prompt"),
+    message: str | None = typer.Argument(None, help="Message to send (interactive if omitted)"),
+    model: str | None = typer.Option(None, "--model", "-m", help="Force model"),
+    system: str | None = typer.Option(None, "--system", "-s", help="System prompt"),
     stream: bool = typer.Option(True, "--stream/--no-stream", help="Stream response"),
     show_stats: bool = typer.Option(True, "--stats/--no-stats", help="Show cost/latency stats"),
 ) -> None:
@@ -172,7 +179,9 @@ def chat(
         asyncio.run(_do_chat(message))
     else:
         # Interactive mode
-        console.print("[bold cyan]AI-COS Interactive Chat[/bold cyan] [dim](Ctrl+C to exit)[/dim]\n")
+        console.print(
+            "[bold cyan]AI-COS Interactive Chat[/bold cyan] [dim](Ctrl+C to exit)[/dim]\n"
+        )
         while True:
             try:
                 user_input = console.input("[bold cyan]You:[/bold cyan] ").strip()
@@ -192,13 +201,15 @@ def chat(
 
 # ── remember ──────────────────────────────────────────────────────────────────
 
+
 @app.command()
 def remember(
     content: str = typer.Argument(..., help="Content to remember"),
-    tags: Optional[str] = typer.Option(None, "--tags", "-t", help="Comma-separated tags"),
+    tags: str | None = typer.Option(None, "--tags", "-t", help="Comma-separated tags"),
 ) -> None:
     """Store a memory in AI-COS."""
     from aicos import AI
+
     ai = AI()
 
     tag_list = [t.strip() for t in tags.split(",")] if tags else []
@@ -214,12 +225,14 @@ def remember(
 
 # ── forget ────────────────────────────────────────────────────────────────────
 
+
 @app.command()
 def forget(
     memory_id: int = typer.Argument(..., help="Memory ID to delete"),
 ) -> None:
     """Delete a stored memory."""
     from aicos import AI
+
     ai = AI()
 
     async def _delete() -> None:
@@ -235,6 +248,7 @@ def forget(
 
 # ── search ────────────────────────────────────────────────────────────────────
 
+
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Search query"),
@@ -243,6 +257,7 @@ def search(
 ) -> None:
     """Search stored memories by semantic similarity."""
     from aicos import AI
+
     ai = AI()
 
     async def _search() -> None:
@@ -263,7 +278,9 @@ def search(
         table.add_column("Tags", style="dim")
 
         for mem in results:
-            score_color = "green" if mem["score"] > 0.7 else "yellow" if mem["score"] > 0.4 else "red"
+            score_color = (
+                "green" if mem["score"] > 0.7 else "yellow" if mem["score"] > 0.4 else "red"
+            )
             table.add_row(
                 str(mem["id"]),
                 f"[{score_color}]{mem['score']:.3f}[/{score_color}]",
@@ -278,10 +295,12 @@ def search(
 
 # ── stats ─────────────────────────────────────────────────────────────────────
 
+
 @app.command()
 def stats() -> None:
     """Show AI-COS usage statistics."""
     from aicos.analytics.metrics import get_metrics
+
     m = get_metrics()
     data = m.to_dict()
 
@@ -311,10 +330,12 @@ def stats() -> None:
 
 # ── config ────────────────────────────────────────────────────────────────────
 
+
 @app.command(name="config")
 def show_config() -> None:
     """Show current AI-COS configuration (secrets masked)."""
     from aicos.core.config import get_config
+
     cfg = get_config()
     masked = cfg.mask_secrets()
 

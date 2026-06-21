@@ -40,12 +40,22 @@ class TestTaskClassification:
         assert task == TaskType.VISION
 
     def test_reasoning_task(self, router: ModelRouter) -> None:
-        messages = [{"role": "user", "content": "Analyze the trade-offs between microservices and monolith architectures"}]
+        messages = [
+            {
+                "role": "user",
+                "content": "Analyze the trade-offs between microservices and monolith architectures",
+            }
+        ]
         task = router.classify_task(messages)
         assert task == TaskType.REASONING
 
     def test_analysis_task(self, router: ModelRouter) -> None:
-        messages = [{"role": "user", "content": "Do market research on the competitor landscape for B2B SaaS"}]
+        messages = [
+            {
+                "role": "user",
+                "content": "Do market research on the competitor landscape for B2B SaaS",
+            }
+        ]
         task = router.classify_task(messages)
         assert task == TaskType.ANALYSIS
 
@@ -92,6 +102,7 @@ class TestModelSelection:
 
     def test_no_providers_raises(self) -> None:
         from unittest.mock import patch
+
         cfg = AICOSConfig(
             openai_api_key=None,
             anthropic_api_key=None,
@@ -118,7 +129,8 @@ class TestCostEstimation:
     def test_nemotron_is_free(self, router: ModelRouter) -> None:
         cost = router.estimate_cost(
             "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
-            input_tokens=1_000_000, output_tokens=1_000_000,
+            input_tokens=1_000_000,
+            output_tokens=1_000_000,
         )
         assert cost == 0.0
 
@@ -135,6 +147,7 @@ class TestEmbeddingTaskClassifier:
     @pytest.fixture
     def classifier(self) -> EmbeddingTaskClassifier:
         from aicos.memory.embeddings import EmbeddingEngine
+
         return EmbeddingTaskClassifier(EmbeddingEngine())
 
     def test_coding_classified(self, classifier: EmbeddingTaskClassifier) -> None:

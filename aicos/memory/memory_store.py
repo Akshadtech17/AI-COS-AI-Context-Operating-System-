@@ -13,14 +13,13 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
-from sqlalchemy import String, Float, Integer, Text, DateTime, select, func
+from sqlalchemy import DateTime, Float, Integer, String, Text, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import text
 
 from aicos.core.database import build_engine
 from aicos.core.logging import get_logger
@@ -84,9 +83,7 @@ class MemoryStore:
         self._embedding_engine = embedding_engine or EmbeddingEngine()
         self._max_items = max_items
         self._engine = build_engine(database_url)
-        self._session_factory = async_sessionmaker(
-            self._engine, expire_on_commit=False
-        )
+        self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
         self._pgvector = False  # set to True in initialize() if column found
 
     async def initialize(self) -> None:
@@ -116,7 +113,7 @@ class MemoryStore:
         vec_str = str(embedding.tolist())
 
         async with self._session_factory() as session:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             item = MemoryItem(
                 content=content,
                 embedding_json=json.dumps(embedding.tolist()),
@@ -133,10 +130,7 @@ class MemoryStore:
 
             if self._pgvector:
                 await session.execute(
-                    text(
-                        "UPDATE memories SET embedding_vec = CAST(:vec AS vector)"
-                        " WHERE id = :id"
-                    ),
+                    text("UPDATE memories SET embedding_vec = CAST(:vec AS vector) WHERE id = :id"),
                     {"vec": vec_str, "id": item_id},
                 )
 
@@ -235,9 +229,7 @@ class MemoryStore:
         ids = list(cosine_by_id)
 
         async with self._session_factory() as session:
-            rows = await session.execute(
-                select(MemoryItem).where(MemoryItem.id.in_(ids))
-            )
+            rows = await session.execute(select(MemoryItem).where(MemoryItem.id.in_(ids)))
             items = list(rows.scalars().all())
 
         if tags:
@@ -296,7 +288,7 @@ class MemoryStore:
 
     async def _update_access(self, results: list[tuple[MemoryItem, float]]) -> None:
         async with self._session_factory() as session:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             for item, _ in results:
                 db_item = await session.get(MemoryItem, item.id)
                 if db_item:
@@ -312,9 +304,7 @@ class MemoryStore:
             result = await session.scalar(select(func.count()).select_from(MemoryItem))
             return int(result or 0)
 
-    async def _load_all(
-        self, tags: list[str] | None, limit: int | None = None
-    ) -> list[MemoryItem]:
+    async def _load_all(self, tags: list[str] | None, limit: int | None = None) -> list[MemoryItem]:
         async with self._session_factory() as session:
             stmt = select(MemoryItem).order_by(MemoryItem.accessed_at.desc())
             if limit:

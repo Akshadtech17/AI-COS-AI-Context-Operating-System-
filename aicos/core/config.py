@@ -102,7 +102,7 @@ class AICOSConfig(BaseSettings):
 
     # ── Observability ────────────────────────────────────────────────────────
     otel_endpoint: str | None = Field(None)  # OTLP gRPC endpoint e.g. http://jaeger:4317
-    sentry_dsn: str | None = Field(None)     # Sentry DSN for error tracking
+    sentry_dsn: str | None = Field(None)  # Sentry DSN for error tracking
 
     # ── Optional Integrations ────────────────────────────────────────────────
     redis_url: str | None = Field(None)
@@ -114,7 +114,7 @@ class AICOSConfig(BaseSettings):
         return str(Path(v).expanduser().resolve())
 
     @model_validator(mode="after")
-    def _load_docker_secrets(self) -> "AICOSConfig":
+    def _load_docker_secrets(self) -> AICOSConfig:
         """
         Read API keys from Docker secrets directory (one file per secret).
 
@@ -195,8 +195,14 @@ class AICOSConfig(BaseSettings):
     def mask_secrets(self) -> dict[str, object]:
         """Return config dict with API keys masked for safe display."""
         data = self.model_dump()
-        for key in ("openai_api_key", "anthropic_api_key", "gemini_api_key",
-                    "openrouter_api_key", "nvidia_api_key", "gateway_api_key"):
+        for key in (
+            "openai_api_key",
+            "anthropic_api_key",
+            "gemini_api_key",
+            "openrouter_api_key",
+            "nvidia_api_key",
+            "gateway_api_key",
+        ):
             if data.get(key):
                 val = str(data[key])
                 data[key] = val[:8] + "..." + val[-4:] if len(val) > 12 else "***"

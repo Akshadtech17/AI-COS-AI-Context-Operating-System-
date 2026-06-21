@@ -27,10 +27,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class CircuitState(str, Enum):
+class CircuitState(StrEnum):
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -74,10 +74,7 @@ class CircuitBreaker:
     def record_failure(self) -> None:
         """Call after a provider call fails."""
         self._failure_count += 1
-        if (
-            self._state is CircuitState.HALF_OPEN
-            or self._failure_count >= self.failure_threshold
-        ):
+        if self._state is CircuitState.HALF_OPEN or self._failure_count >= self.failure_threshold:
             self._state = CircuitState.OPEN
             self._opened_at = time.monotonic()
 

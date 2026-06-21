@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -47,12 +44,14 @@ class TestEmbeddingEngine:
 
     def test_top_k(self, embedding_engine: EmbeddingEngine) -> None:
         query = embedding_engine.embed("machine learning")
-        candidates = embedding_engine.embed_batch([
-            "machine learning and AI",
-            "cooking and recipes",
-            "deep learning neural networks",
-            "gardening tips",
-        ])
+        candidates = embedding_engine.embed_batch(
+            [
+                "machine learning and AI",
+                "cooking and recipes",
+                "deep learning neural networks",
+                "gardening tips",
+            ]
+        )
         results = embedding_engine.top_k(query, candidates, k=2, threshold=0.0)
         assert len(results) == 2
         indices = [r[0] for r in results]
@@ -132,8 +131,6 @@ class TestMemoryStore:
     @pytest.mark.asyncio
     async def test_forget_by_content(self, memory_store: MemoryStore) -> None:
         await memory_store.store("User wants to be a data scientist")
-        initial_count = await memory_store.count()
-
         deleted = await memory_store.forget_by_content(
             "User wants to be a data scientist", threshold=0.99
         )

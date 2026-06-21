@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
 from aicos.analytics.cost_tracker import CostTracker
 from aicos.analytics.metrics import get_metrics
@@ -23,7 +24,7 @@ from aicos.context.history_manager import HistoryManager
 from aicos.core.circuit_breaker import CircuitBreakerRegistry
 from aicos.core.config import AICOSConfig
 from aicos.core.logging import get_logger, set_session_id
-from aicos.core.router import ModelRouter, RoutingDecision
+from aicos.core.router import ModelRouter
 from aicos.memory.retrieval import MemoryRetriever
 from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
 
@@ -145,9 +146,7 @@ class AIGateway:
             messages = await self._memory.inject_into_messages(messages)
             mem_count = len(messages) - len(request.messages)
             memories_injected = max(0, mem_count)
-            metrics.record_stage_latency(
-                "memory_retrieval", (time.perf_counter() - t_mem) * 1000
-            )
+            metrics.record_stage_latency("memory_retrieval", (time.perf_counter() - t_mem) * 1000)
             metrics.memory_retrieved.inc(memories_injected)
 
         # ── Step 3: Context optimization ──────────────────────────────────
@@ -172,8 +171,6 @@ class AIGateway:
                 metrics.record_compression(tokens_before, tokens_after)
 
         # ── Step 4: Cache lookup ──────────────────────────────────────────
-        cache_hit = False
-        cache_hit_type: str | None = None
         last_user_content = ""
         for m in reversed(messages):
             if m.get("role") == "user":
@@ -212,7 +209,9 @@ class AIGateway:
                     provider=decision.provider,
                     task_type=decision.task_type.value,
                     input_tokens=tokens_after,
-                    output_tokens=cache_result.source_entry.output_tokens if cache_result.source_entry else 0,
+                    output_tokens=cache_result.source_entry.output_tokens
+                    if cache_result.source_entry
+                    else 0,
                     cost_usd=0.0,
                     latency_ms=total_ms,
                     cache_hit=True,
@@ -234,8 +233,8 @@ class AIGateway:
         models_to_try = [decision.model] + decision.fallback_models
 
         for model_attempt in models_to_try:
-            spec_model = model_attempt
             from aicos.core.router import MODEL_REGISTRY
+
             spec = MODEL_REGISTRY.get(model_attempt)
             if not spec:
                 continue
@@ -288,9 +287,7 @@ class AIGateway:
                         "All providers exhausted",
                         extra={"last_error": str(e)},
                     )
-                    raise RuntimeError(
-                        f"All providers failed. Last error: {e}"
-                    ) from e
+                    raise RuntimeError(f"All providers failed. Last error: {e}") from e
                 continue
 
         if not provider_response:
@@ -354,9 +351,7 @@ class AIGateway:
             routing_reason=decision.reasoning,
         )
 
-    async def stream(
-        self, request: GatewayRequest
-    ) -> AsyncIterator[StreamChunk]:
+    async def stream(self, request: GatewayRequest) -> AsyncIterator[StreamChunk]:
         """
         Streaming pipeline — same pre-processing as process(), but returns
         an async iterator of StreamChunk tokens for SSE delivery.
@@ -406,6 +401,7 @@ class AIGateway:
 
         for model_attempt in models_to_try:
             from aicos.core.router import MODEL_REGISTRY
+
             spec = MODEL_REGISTRY.get(model_attempt)
             if not spec:
                 continue
@@ -442,7 +438,12 @@ class AIGateway:
                 continue
 
         # Cache the complete response
-        if self._cache and self._config.cache_enabled and not request.skip_cache and collected_chunks:
+        if (
+            self._cache
+            and self._config.cache_enabled
+            and not request.skip_cache
+            and collected_chunks
+        ):
             full_response = "".join(collected_chunks)
             context_hash = self._context_hash(request.messages)
             await self._cache.set(

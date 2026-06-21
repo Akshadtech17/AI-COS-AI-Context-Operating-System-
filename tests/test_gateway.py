@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, patch
-
 import pytest
 
 from aicos.core.gateway import AIGateway, GatewayRequest
-from aicos.providers.base import ProviderResponse, StreamChunk
 
 
 class TestGatewayBasic:
@@ -143,6 +139,7 @@ class TestGatewayFailover:
         class FailingProvider(MockProvider):
             async def complete(self, *args, **kwargs):
                 raise ConnectionError("Provider unavailable")
+
             async def stream(self, *args, **kwargs):
                 raise ConnectionError("Provider unavailable")
                 yield  # Make it a generator

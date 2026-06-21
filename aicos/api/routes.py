@@ -21,26 +21,24 @@ import asyncio
 import json
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
-
-_DASHBOARD_HTML = Path(__file__).parent / "templates" / "dashboard.html"
-_VERSION = "0.5.0"
 
 from aicos.analytics.cost_tracker import CostTracker
 from aicos.analytics.metrics import get_metrics
 from aicos.api.middleware import RequestIDMiddleware
 from aicos.api.rate_limiter import RateLimitMiddleware
-from aicos.auth.api_keys import APIKey, APIKeyStore
+from aicos.auth.api_keys import APIKeyStore
 from aicos.cache.semantic_cache import SemanticCache
 from aicos.cache.sqlite_cache import SQLiteCache
 from aicos.context.compressor import ContextCompressor
@@ -54,12 +52,16 @@ from aicos.core.telemetry import configure_telemetry
 from aicos.memory.embeddings import EmbeddingEngine
 from aicos.memory.memory_store import MemoryStore
 from aicos.memory.retrieval import MemoryRetriever
-from aicos.providers.base import StreamChunk
+
+_DASHBOARD_HTML = Path(__file__).parent / "templates" / "dashboard.html"
+_VERSION = "0.5.0"
+_NVIDIA_FAVICON = "https://www.nvidia.com/favicon.ico"
 
 log = get_logger("api.routes")
 
 
 # ── Request/Response Models ───────────────────────────────────────────────────
+
 
 class ChatMessage(BaseModel):
     role: str
@@ -72,7 +74,7 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: int = Field(4096, ge=1, le=128_000)
     temperature: float = Field(0.7, ge=0.0, le=2.0)
     stream: bool = False
-    session_id: Optional[str] = None
+    session_id: str | None = None
     skip_cache: bool = False
     skip_memory: bool = False
     skip_compression: bool = False
@@ -197,6 +199,7 @@ async def _build_gateway(cfg: AICOSConfig) -> tuple[AIGateway, MemoryStore]:
 
 # ── App factory ───────────────────────────────────────────────────────────────
 
+
 def create_app(config: AICOSConfig | None = None) -> FastAPI:
     cfg = config or get_config()
 
@@ -237,8 +240,6 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
         _memory_store = None
         _key_store = None
         log.info("AI-COS gateway stopped")
-
-    _NVIDIA_FAVICON = "https://www.nvidia.com/favicon.ico"
 
     app = FastAPI(
         title="AI-COS Gateway",
@@ -360,26 +361,23 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
         gw = _gateway
 
         if gw is not None and isinstance(getattr(gw, "_providers", None), dict):
+
             async def _probe(name: str, provider: Any) -> tuple[str, str]:
                 try:
                     ok = await asyncio.wait_for(provider.is_available(), timeout=5.0)
                     return name, "ok" if ok else "degraded"
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     return name, "timeout"
                 except Exception:
                     return name, "error"
 
-            results = await asyncio.gather(
-                *[_probe(n, p) for n, p in gw._providers.items()]
-            )
+            results = await asyncio.gather(*[_probe(n, p) for n, p in gw._providers.items()])
             provider_health = dict(results)
 
         any_ok = any(v == "ok" for v in provider_health.values())
         status = "ok" if (any_ok or not provider_health) else "degraded"
 
-        circuit_status = (
-            gw._breakers.all_status() if gw and hasattr(gw, "_breakers") else []
-        )
+        circuit_status = gw._breakers.all_status() if gw and hasattr(gw, "_breakers") else []
 
         return {
             "status": status,
@@ -467,13 +465,15 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
 
         except Exception as exc:
             log.error("Streaming error", extra={"error": str(exc)}, exc_info=True)
-            yield json.dumps({
-                "error": {
-                    "message": str(exc),
-                    "type": "stream_error",
-                    "code": "provider_error",
+            yield json.dumps(
+                {
+                    "error": {
+                        "message": str(exc),
+                        "type": "stream_error",
+                        "code": "provider_error",
+                    }
                 }
-            })
+            )
 
     def _format_completion_response(
         response: Any,
@@ -503,7 +503,12 @@ def create_app(config: AICOSConfig | None = None) -> FastAPI:
                 "tokens_before_compression": response.tokens_before_compression,
                 "tokens_after_compression": response.tokens_after_compression,
                 "compression_savings_pct": round(
-                    (1 - response.tokens_after_compression / max(response.tokens_before_compression, 1)) * 100,
+                    (
+                        1
+                        - response.tokens_after_compression
+                        / max(response.tokens_before_compression, 1)
+                    )
+                    * 100,
                     1,
                 ),
                 "memories_injected": response.memories_injected,

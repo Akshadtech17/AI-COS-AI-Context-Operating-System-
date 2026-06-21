@@ -13,8 +13,8 @@ Provides the simplest possible DX:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from aicos.analytics.cost_tracker import CostTracker
 from aicos.cache.semantic_cache import SemanticCache
@@ -201,9 +201,7 @@ class AI:
         Returns:
             Response string (or iterator if stream=True)
         """
-        return asyncio.run(
-            self.achat(message, system=system, model=model, stream=stream, **kwargs)
-        )
+        return asyncio.run(self.achat(message, system=system, model=model, stream=stream, **kwargs))
 
     async def achat(
         self,
@@ -287,9 +285,7 @@ class AI:
         Returns:
             Memory ID
         """
-        return asyncio.run(
-            self.aremember(content, tags=tags, metadata=metadata)
-        )
+        return asyncio.run(self.aremember(content, tags=tags, metadata=metadata))
 
     async def aremember(
         self,
@@ -301,6 +297,7 @@ class AI:
         assert self._memory_store is not None
         memory_id = await self._memory_store.store(content, tags=tags, metadata=metadata)
         from aicos.analytics.metrics import get_metrics
+
         get_metrics().memory_stored.inc()
         return memory_id
 
@@ -320,9 +317,7 @@ class AI:
         threshold: float = 0.3,
     ) -> list[dict[str, Any]]:
         """Search stored memories by semantic similarity."""
-        return asyncio.run(
-            self.asearch_memory(query, top_k=top_k, threshold=threshold)
-        )
+        return asyncio.run(self.asearch_memory(query, top_k=top_k, threshold=threshold))
 
     async def asearch_memory(
         self,
@@ -362,4 +357,5 @@ class AI:
     def metrics(self) -> dict[str, Any]:
         """Return session metrics."""
         from aicos.analytics.metrics import get_metrics
+
         return get_metrics().to_dict()

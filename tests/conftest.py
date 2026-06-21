@@ -2,28 +2,24 @@
 
 from __future__ import annotations
 
-import asyncio
-import tempfile
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import pytest
 import pytest_asyncio
 
 from aicos.cache.semantic_cache import SemanticCache
 from aicos.cache.sqlite_cache import SQLiteCache
 from aicos.core.config import AICOSConfig
-from aicos.core.gateway import AIGateway, GatewayRequest
+from aicos.core.gateway import AIGateway
 from aicos.core.router import ModelRouter
 from aicos.memory.embeddings import EmbeddingEngine
 from aicos.memory.memory_store import MemoryStore
 from aicos.memory.retrieval import MemoryRetriever
 from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
 
-
 # ── Config ────────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def tmp_dir(tmp_path: Path) -> Path:
@@ -52,6 +48,7 @@ def config(tmp_dir: Path) -> AICOSConfig:
 
 # ── Mock Provider ─────────────────────────────────────────────────────────────
 
+
 class MockProvider(BaseProvider):
     def __init__(self, response_text: str = "Mock response") -> None:
         self._response_text = response_text
@@ -64,7 +61,9 @@ class MockProvider(BaseProvider):
     async def is_available(self) -> bool:
         return True
 
-    async def complete(self, messages, model, max_tokens=4096, temperature=0.7, **kwargs) -> ProviderResponse:
+    async def complete(
+        self, messages, model, max_tokens=4096, temperature=0.7, **kwargs
+    ) -> ProviderResponse:
         self.call_count += 1
         return ProviderResponse(
             content=self._response_text,
@@ -75,11 +74,15 @@ class MockProvider(BaseProvider):
             raw={},
         )
 
-    async def stream(self, messages, model, max_tokens=4096, temperature=0.7, **kwargs) -> AsyncIterator[StreamChunk]:
+    async def stream(
+        self, messages, model, max_tokens=4096, temperature=0.7, **kwargs
+    ) -> AsyncIterator[StreamChunk]:
         words = self._response_text.split()
         for word in words:
             yield StreamChunk(delta=word + " ", model=model)
-        yield StreamChunk(delta="", model=model, finish_reason="stop", input_tokens=10, output_tokens=len(words))
+        yield StreamChunk(
+            delta="", model=model, finish_reason="stop", input_tokens=10, output_tokens=len(words)
+        )
 
 
 @pytest.fixture
@@ -89,12 +92,14 @@ def mock_provider() -> MockProvider:
 
 # ── Embedding Engine ──────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def embedding_engine() -> EmbeddingEngine:
     return EmbeddingEngine()
 
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
+
 
 @pytest_asyncio.fixture
 async def sqlite_cache(tmp_dir: Path) -> AsyncIterator[SQLiteCache]:
@@ -105,7 +110,9 @@ async def sqlite_cache(tmp_dir: Path) -> AsyncIterator[SQLiteCache]:
 
 
 @pytest_asyncio.fixture
-async def semantic_cache(sqlite_cache: SQLiteCache, embedding_engine: EmbeddingEngine) -> SemanticCache:
+async def semantic_cache(
+    sqlite_cache: SQLiteCache, embedding_engine: EmbeddingEngine
+) -> SemanticCache:
     return SemanticCache(
         sqlite_cache=sqlite_cache,
         embedding_engine=embedding_engine,
@@ -115,8 +122,11 @@ async def semantic_cache(sqlite_cache: SQLiteCache, embedding_engine: EmbeddingE
 
 # ── Memory ────────────────────────────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
-async def memory_store(tmp_dir: Path, embedding_engine: EmbeddingEngine) -> AsyncIterator[MemoryStore]:
+async def memory_store(
+    tmp_dir: Path, embedding_engine: EmbeddingEngine
+) -> AsyncIterator[MemoryStore]:
     store = MemoryStore(
         database_url=f"sqlite+aiosqlite:///{tmp_dir}/memory.db",
         embedding_engine=embedding_engine,
@@ -133,6 +143,7 @@ def memory_retriever(memory_store: MemoryStore) -> MemoryRetriever:
 
 
 # ── Gateway ───────────────────────────────────────────────────────────────────
+
 
 @pytest_asyncio.fixture
 async def gateway(

@@ -16,7 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from aicos.core.logging import get_logger, set_request_id, set_session_id
+from aicos.core.logging import get_logger, set_request_id
 
 log = get_logger("api.middleware")
 

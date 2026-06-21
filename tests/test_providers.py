@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aicos.providers.base import ProviderResponse, StreamChunk
-
+from aicos.providers.base import ProviderResponse
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _make_openai_response(content: str = "Hello!", model: str = "gpt-4o-mini") -> MagicMock:
     resp = MagicMock()
@@ -42,11 +43,13 @@ async def _openai_chunk_stream() -> AsyncIterator[Any]:
 
 # ── OpenAI Provider ───────────────────────────────────────────────────────────
 
+
 class TestOpenAIProvider:
     @pytest.fixture
     def provider(self):
         with patch("openai.AsyncOpenAI"):
             from aicos.providers.openai_provider import OpenAIProvider
+
             p = OpenAIProvider(api_key="sk-test")
             p._client = AsyncMock()
             return p
@@ -98,9 +101,7 @@ class TestOpenAIProvider:
 
     @pytest.mark.asyncio
     async def test_stream_yields_chunks(self, provider) -> None:
-        provider._client.chat.completions.create = AsyncMock(
-            return_value=_openai_chunk_stream()
-        )
+        provider._client.chat.completions.create = AsyncMock(return_value=_openai_chunk_stream())
         messages = [{"role": "user", "content": "Hello"}]
         chunks = []
         async for chunk in provider.stream(messages, model="gpt-4o-mini"):
@@ -110,11 +111,11 @@ class TestOpenAIProvider:
 
     @pytest.mark.asyncio
     async def test_stream_usage_chunk(self, provider) -> None:
-        provider._client.chat.completions.create = AsyncMock(
-            return_value=_openai_chunk_stream()
-        )
+        provider._client.chat.completions.create = AsyncMock(return_value=_openai_chunk_stream())
         chunks = []
-        async for chunk in provider.stream([{"role": "user", "content": "Hi"}], model="gpt-4o-mini"):
+        async for chunk in provider.stream(
+            [{"role": "user", "content": "Hi"}], model="gpt-4o-mini"
+        ):
             chunks.append(chunk)
         usage_chunks = [c for c in chunks if c.input_tokens and c.input_tokens > 0]
         assert len(usage_chunks) == 1
@@ -124,6 +125,7 @@ class TestOpenAIProvider:
     async def test_stream_with_base_url(self) -> None:
         with patch("openai.AsyncOpenAI") as mock_cls:
             from aicos.providers.openai_provider import OpenAIProvider
+
             OpenAIProvider(api_key="sk-test", base_url="https://openrouter.ai/api/v1")
             mock_cls.assert_called_once_with(
                 api_key="sk-test", base_url="https://openrouter.ai/api/v1"
@@ -132,11 +134,13 @@ class TestOpenAIProvider:
 
 # ── Anthropic Provider ────────────────────────────────────────────────────────
 
+
 class TestAnthropicProvider:
     @pytest.fixture
     def provider(self):
         with patch("anthropic.AsyncAnthropic"):
             from aicos.providers.anthropic_provider import AnthropicProvider
+
             p = AnthropicProvider(api_key="sk-ant-test")
             p._client = AsyncMock()
             return p
@@ -248,12 +252,14 @@ class TestAnthropicProvider:
 
 # ── Gemini Provider ───────────────────────────────────────────────────────────
 
+
 class TestGeminiProvider:
     @pytest.fixture
     def provider(self):
         mock_genai = MagicMock()
         with patch.dict("sys.modules", {"google.generativeai": mock_genai}):
             from aicos.providers.gemini_provider import GeminiProvider
+
             p = GeminiProvider(api_key="test-key")
             p._genai = mock_genai
             return p

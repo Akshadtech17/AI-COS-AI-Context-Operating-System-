@@ -11,12 +11,11 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import Boolean, Float, Integer, String, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from aicos.analytics.metrics import get_metrics
@@ -88,22 +87,22 @@ class CostTracker:
         # Load recent records to restore historical stats
         async with self._session_factory() as session:
             result = await session.execute(
-                select(_CostRow)
-                .order_by(_CostRow.recorded_at.desc())
-                .limit(1000)
+                select(_CostRow).order_by(_CostRow.recorded_at.desc()).limit(1000)
             )
             for row in result.scalars().all():
-                self._records.append(CostRecord(
-                    model=row.model,
-                    provider=row.provider,
-                    input_tokens=row.input_tokens,
-                    output_tokens=row.output_tokens,
-                    cost_usd=row.cost_usd,
-                    task_type=row.task_type,
-                    timestamp=datetime.fromtimestamp(row.recorded_at, tz=timezone.utc),
-                    session_id=row.session_id,
-                    cache_hit=bool(row.cache_hit),
-                ))
+                self._records.append(
+                    CostRecord(
+                        model=row.model,
+                        provider=row.provider,
+                        input_tokens=row.input_tokens,
+                        output_tokens=row.output_tokens,
+                        cost_usd=row.cost_usd,
+                        task_type=row.task_type,
+                        timestamp=datetime.fromtimestamp(row.recorded_at, tz=UTC),
+                        session_id=row.session_id,
+                        cache_hit=bool(row.cache_hit),
+                    )
+                )
 
     async def _persist(self, record: CostRecord) -> None:
         if not self._session_factory:
@@ -159,7 +158,7 @@ class CostTracker:
             output_tokens=output_tokens,
             cost_usd=cost,
             task_type=task_type,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             session_id=session_id,
             cache_hit=cache_hit,
         )
@@ -229,7 +228,9 @@ class CostTracker:
                 }
             result[r.model]["requests"] = int(result[r.model]["requests"]) + 1  # type: ignore[arg-type]
             result[r.model]["input_tokens"] = int(result[r.model]["input_tokens"]) + r.input_tokens  # type: ignore[arg-type]
-            result[r.model]["output_tokens"] = int(result[r.model]["output_tokens"]) + r.output_tokens  # type: ignore[arg-type]
+            result[r.model]["output_tokens"] = (
+                int(result[r.model]["output_tokens"]) + r.output_tokens
+            )  # type: ignore[arg-type]
             result[r.model]["cost_usd"] = round(float(result[r.model]["cost_usd"]) + r.cost_usd, 6)  # type: ignore[arg-type]
         return result
 

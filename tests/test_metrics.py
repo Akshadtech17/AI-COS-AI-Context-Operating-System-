@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from aicos.analytics.cost_tracker import CostTracker
-from aicos.analytics.metrics import MetricsCollector, Counter, Histogram
+from aicos.analytics.metrics import Counter, Histogram, MetricsCollector
 
 
 class TestCounter:
@@ -158,7 +158,8 @@ class TestCostTracker:
     def test_compute_cost_nemotron_free(self, tracker: CostTracker) -> None:
         cost = tracker.compute_cost(
             "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1",
-            input_tokens=1_000_000, output_tokens=0,
+            input_tokens=1_000_000,
+            output_tokens=0,
         )
         assert cost == 0.0
 

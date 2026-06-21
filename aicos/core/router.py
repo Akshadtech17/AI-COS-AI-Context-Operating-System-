@@ -7,14 +7,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from aicos.core.config import AICOSConfig
 
 
-class TaskType(str, Enum):
+class TaskType(StrEnum):
     SIMPLE = "simple"
     CODING = "coding"
     VISION = "vision"
@@ -28,7 +28,7 @@ class TaskType(str, Enum):
 class ModelSpec:
     model_id: str
     provider: str
-    input_cost_per_1m: float   # USD per 1M input tokens
+    input_cost_per_1m: float  # USD per 1M input tokens
     output_cost_per_1m: float  # USD per 1M output tokens
     max_tokens: int
     capabilities: set[str]
@@ -40,80 +40,128 @@ class ModelSpec:
 MODEL_REGISTRY: dict[str, ModelSpec] = {
     # ── OpenAI ───────────────────────────────────────────────────────────────
     "gpt-4o-mini": ModelSpec(
-        model_id="gpt-4o-mini", provider="openai",
-        input_cost_per_1m=0.15, output_cost_per_1m=0.60,
-        max_tokens=128_000, capabilities={"text", "code", "vision", "json"},
-        avg_latency_ms=800, tier="cheap",
+        model_id="gpt-4o-mini",
+        provider="openai",
+        input_cost_per_1m=0.15,
+        output_cost_per_1m=0.60,
+        max_tokens=128_000,
+        capabilities={"text", "code", "vision", "json"},
+        avg_latency_ms=800,
+        tier="cheap",
     ),
     "gpt-4o": ModelSpec(
-        model_id="gpt-4o", provider="openai",
-        input_cost_per_1m=2.50, output_cost_per_1m=10.00,
-        max_tokens=128_000, capabilities={"text", "code", "vision", "json", "reasoning"},
-        avg_latency_ms=1500, tier="premium",
+        model_id="gpt-4o",
+        provider="openai",
+        input_cost_per_1m=2.50,
+        output_cost_per_1m=10.00,
+        max_tokens=128_000,
+        capabilities={"text", "code", "vision", "json", "reasoning"},
+        avg_latency_ms=1500,
+        tier="premium",
     ),
     "o1-mini": ModelSpec(
-        model_id="o1-mini", provider="openai",
-        input_cost_per_1m=3.00, output_cost_per_1m=12.00,
-        max_tokens=128_000, capabilities={"text", "code", "reasoning", "math"},
-        avg_latency_ms=5000, tier="mid",
+        model_id="o1-mini",
+        provider="openai",
+        input_cost_per_1m=3.00,
+        output_cost_per_1m=12.00,
+        max_tokens=128_000,
+        capabilities={"text", "code", "reasoning", "math"},
+        avg_latency_ms=5000,
+        tier="mid",
     ),
     # ── Anthropic ─────────────────────────────────────────────────────────────
     "claude-haiku-4-5-20251001": ModelSpec(
-        model_id="claude-haiku-4-5-20251001", provider="anthropic",
-        input_cost_per_1m=0.25, output_cost_per_1m=1.25,
-        max_tokens=200_000, capabilities={"text", "code", "json"},
-        avg_latency_ms=600, tier="cheap",
+        model_id="claude-haiku-4-5-20251001",
+        provider="anthropic",
+        input_cost_per_1m=0.25,
+        output_cost_per_1m=1.25,
+        max_tokens=200_000,
+        capabilities={"text", "code", "json"},
+        avg_latency_ms=600,
+        tier="cheap",
     ),
     "claude-sonnet-4-6": ModelSpec(
-        model_id="claude-sonnet-4-6", provider="anthropic",
-        input_cost_per_1m=3.00, output_cost_per_1m=15.00,
-        max_tokens=200_000, capabilities={"text", "code", "vision", "json", "reasoning", "analysis"},
-        avg_latency_ms=1200, tier="mid",
+        model_id="claude-sonnet-4-6",
+        provider="anthropic",
+        input_cost_per_1m=3.00,
+        output_cost_per_1m=15.00,
+        max_tokens=200_000,
+        capabilities={"text", "code", "vision", "json", "reasoning", "analysis"},
+        avg_latency_ms=1200,
+        tier="mid",
     ),
     "claude-opus-4-8": ModelSpec(
-        model_id="claude-opus-4-8", provider="anthropic",
-        input_cost_per_1m=15.00, output_cost_per_1m=75.00,
-        max_tokens=200_000, capabilities={"text", "code", "vision", "json", "reasoning", "analysis", "agent"},
-        avg_latency_ms=3000, tier="premium",
+        model_id="claude-opus-4-8",
+        provider="anthropic",
+        input_cost_per_1m=15.00,
+        output_cost_per_1m=75.00,
+        max_tokens=200_000,
+        capabilities={"text", "code", "vision", "json", "reasoning", "analysis", "agent"},
+        avg_latency_ms=3000,
+        tier="premium",
     ),
     # ── Google Gemini ─────────────────────────────────────────────────────────
     "gemini/gemini-2.0-flash": ModelSpec(
-        model_id="gemini/gemini-2.0-flash", provider="gemini",
-        input_cost_per_1m=0.10, output_cost_per_1m=0.40,
-        max_tokens=1_000_000, capabilities={"text", "code", "vision", "json"},
-        avg_latency_ms=700, tier="cheap",
+        model_id="gemini/gemini-2.0-flash",
+        provider="gemini",
+        input_cost_per_1m=0.10,
+        output_cost_per_1m=0.40,
+        max_tokens=1_000_000,
+        capabilities={"text", "code", "vision", "json"},
+        avg_latency_ms=700,
+        tier="cheap",
     ),
     "gemini/gemini-1.5-pro": ModelSpec(
-        model_id="gemini/gemini-1.5-pro", provider="gemini",
-        input_cost_per_1m=1.25, output_cost_per_1m=5.00,
-        max_tokens=2_000_000, capabilities={"text", "code", "vision", "json", "reasoning"},
-        avg_latency_ms=1500, tier="mid",
+        model_id="gemini/gemini-1.5-pro",
+        provider="gemini",
+        input_cost_per_1m=1.25,
+        output_cost_per_1m=5.00,
+        max_tokens=2_000_000,
+        capabilities={"text", "code", "vision", "json", "reasoning"},
+        avg_latency_ms=1500,
+        tier="mid",
     ),
     # ── NVIDIA Nemotron Ultra (free) ──────────────────────────────────────────
     "nvidia/llama-3.1-nemotron-ultra-253b-v1": ModelSpec(
-        model_id="nvidia/llama-3.1-nemotron-ultra-253b-v1", provider="nvidia",
-        input_cost_per_1m=0.0, output_cost_per_1m=0.0,
-        max_tokens=128_000, capabilities={"text", "code", "reasoning", "analysis", "json", "vision"},
-        avg_latency_ms=2500, tier="free",
+        model_id="nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        provider="nvidia",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=128_000,
+        capabilities={"text", "code", "reasoning", "analysis", "json", "vision"},
+        avg_latency_ms=2500,
+        tier="free",
     ),
     "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1": ModelSpec(
-        model_id="nvidia/llama-3.1-nemotron-ultra-253b-v1", provider="openrouter",
-        input_cost_per_1m=0.0, output_cost_per_1m=0.0,
-        max_tokens=128_000, capabilities={"text", "code", "reasoning", "analysis", "json", "vision"},
-        avg_latency_ms=2500, tier="free",
+        model_id="nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        provider="openrouter",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=128_000,
+        capabilities={"text", "code", "reasoning", "analysis", "json", "vision"},
+        avg_latency_ms=2500,
+        tier="free",
     ),
     # ── Ollama (local) ────────────────────────────────────────────────────────
     "ollama/llama3.2": ModelSpec(
-        model_id="ollama/llama3.2", provider="ollama",
-        input_cost_per_1m=0.0, output_cost_per_1m=0.0,
-        max_tokens=128_000, capabilities={"text", "code"},
-        avg_latency_ms=2000, tier="local",
+        model_id="ollama/llama3.2",
+        provider="ollama",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=128_000,
+        capabilities={"text", "code"},
+        avg_latency_ms=2000,
+        tier="local",
     ),
     "ollama/codellama": ModelSpec(
-        model_id="ollama/codellama", provider="ollama",
-        input_cost_per_1m=0.0, output_cost_per_1m=0.0,
-        max_tokens=16_000, capabilities={"code"},
-        avg_latency_ms=3000, tier="local",
+        model_id="ollama/codellama",
+        provider="ollama",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=16_000,
+        capabilities={"code"},
+        avg_latency_ms=3000,
+        tier="local",
     ),
 }
 
@@ -130,13 +178,13 @@ TASK_CAPABILITY_MAP: dict[TaskType, list[str]] = {
 
 # Task → preferred tier order (free = Nemotron, always preferred)
 TASK_TIER_PREFERENCE: dict[TaskType, list[str]] = {
-    TaskType.SIMPLE:    ["free", "cheap", "local", "mid"],
-    TaskType.CODING:    ["free", "mid", "cheap", "premium"],
-    TaskType.VISION:    ["free", "mid", "premium"],
+    TaskType.SIMPLE: ["free", "cheap", "local", "mid"],
+    TaskType.CODING: ["free", "mid", "cheap", "premium"],
+    TaskType.VISION: ["free", "mid", "premium"],
     TaskType.REASONING: ["free", "premium", "mid"],
-    TaskType.CREATIVE:  ["free", "mid", "cheap"],
-    TaskType.ANALYSIS:  ["free", "premium", "mid"],
-    TaskType.AGENT:     ["free", "premium", "mid"],
+    TaskType.CREATIVE: ["free", "mid", "cheap"],
+    TaskType.ANALYSIS: ["free", "premium", "mid"],
+    TaskType.AGENT: ["free", "premium", "mid"],
 }
 
 # ── Regex patterns (fallback classifier) ─────────────────────────────────────
@@ -181,6 +229,7 @@ _AGENT_RE = re.compile(
 
 # ── Embedding-based zero-shot classifier ──────────────────────────────────────
 
+
 class EmbeddingTaskClassifier:
     """
     Zero-shot task classifier using prototype embeddings.
@@ -192,42 +241,69 @@ class EmbeddingTaskClassifier:
 
     _PROTOTYPES: dict[str, list[str]] = {
         "coding": [
-            "write a Python function", "implement this algorithm",
-            "debug this code", "refactor the class", "write unit tests",
-            "create a REST API endpoint", "fix the bug", "write SQL query",
-            "npm install package", "pip install library", "write a script",
+            "write a Python function",
+            "implement this algorithm",
+            "debug this code",
+            "refactor the class",
+            "write unit tests",
+            "create a REST API endpoint",
+            "fix the bug",
+            "write SQL query",
+            "npm install package",
+            "pip install library",
+            "write a script",
         ],
         "reasoning": [
-            "analyze the trade-offs", "compare these approaches",
-            "evaluate this design decision", "prove this theorem",
-            "what are the pros and cons", "design the system architecture",
-            "logical reasoning step by step", "math problem solution",
+            "analyze the trade-offs",
+            "compare these approaches",
+            "evaluate this design decision",
+            "prove this theorem",
+            "what are the pros and cons",
+            "design the system architecture",
+            "logical reasoning step by step",
+            "math problem solution",
         ],
         "analysis": [
-            "market research report", "competitor analysis",
-            "business strategy evaluation", "financial analysis",
-            "ROI calculation", "data insights", "trend forecast",
+            "market research report",
+            "competitor analysis",
+            "business strategy evaluation",
+            "financial analysis",
+            "ROI calculation",
+            "data insights",
+            "trend forecast",
             "performance metrics review",
         ],
         "creative": [
-            "write a short story", "marketing copy for product",
-            "write a blog post", "generate creative ideas",
-            "write a poem", "branding tagline", "narrative writing",
+            "write a short story",
+            "marketing copy for product",
+            "write a blog post",
+            "generate creative ideas",
+            "write a poem",
+            "branding tagline",
+            "narrative writing",
         ],
         "vision": [
-            "describe what is in this image", "what do you see in the photo",
-            "analyze this picture", "read the text in the diagram",
+            "describe what is in this image",
+            "what do you see in the photo",
+            "analyze this picture",
+            "read the text in the diagram",
             "identify objects in the screenshot",
         ],
         "agent": [
-            "automate this multi-step workflow", "orchestrate these tasks",
-            "autonomous execution of the process", "run the agent workflow",
+            "automate this multi-step workflow",
+            "orchestrate these tasks",
+            "autonomous execution of the process",
+            "run the agent workflow",
             "coordinate multiple steps automatically",
         ],
         "simple": [
-            "what is the capital city", "who is this person",
-            "when did this event happen", "how many items are there",
-            "tell me briefly", "quick question about", "simple definition of",
+            "what is the capital city",
+            "who is this person",
+            "when did this event happen",
+            "how many items are there",
+            "tell me briefly",
+            "quick question about",
+            "simple definition of",
         ],
     }
 
@@ -243,6 +319,7 @@ class EmbeddingTaskClassifier:
 
     def __init__(self, embedding_engine: Any) -> None:
         import numpy as np
+
         self._engine = embedding_engine
         self._centroids: dict[TaskType, Any] = {}
         for key, phrases in self._PROTOTYPES.items():
@@ -253,12 +330,14 @@ class EmbeddingTaskClassifier:
 
     def classify(self, text: str) -> TaskType:
         import numpy as np
+
         query = self._engine.embed(text[:600])
         scores = {t: float(np.dot(query, c)) for t, c in self._centroids.items()}
         return max(scores, key=lambda t: scores[t])
 
 
 # ── Routing decision ──────────────────────────────────────────────────────────
+
 
 @dataclass
 class RoutingDecision:
@@ -286,9 +365,7 @@ class ModelRouter:
     def _refresh_available(self) -> None:
         providers = set(self.config.available_providers())
         self._available_models = {
-            mid: spec
-            for mid, spec in MODEL_REGISTRY.items()
-            if spec.provider in providers
+            mid: spec for mid, spec in MODEL_REGISTRY.items() if spec.provider in providers
         }
 
     def classify_task(self, messages: list[dict[str, object]]) -> TaskType:
@@ -304,12 +381,18 @@ class ModelRouter:
 
         # Regex fallback
         scores: dict[TaskType, int] = {t: 0 for t in TaskType}
-        if _CODE_RE.search(text):     scores[TaskType.CODING] += 3
-        if _VISION_RE.search(text):   scores[TaskType.VISION] += 5
-        if _REASONING_RE.search(text): scores[TaskType.REASONING] += 2
-        if _ANALYSIS_RE.search(text): scores[TaskType.ANALYSIS] += 2
-        if _CREATIVE_RE.search(text): scores[TaskType.CREATIVE] += 2
-        if _AGENT_RE.search(text):    scores[TaskType.AGENT] += 3
+        if _CODE_RE.search(text):
+            scores[TaskType.CODING] += 3
+        if _VISION_RE.search(text):
+            scores[TaskType.VISION] += 5
+        if _REASONING_RE.search(text):
+            scores[TaskType.REASONING] += 2
+        if _ANALYSIS_RE.search(text):
+            scores[TaskType.ANALYSIS] += 2
+        if _CREATIVE_RE.search(text):
+            scores[TaskType.CREATIVE] += 2
+        if _AGENT_RE.search(text):
+            scores[TaskType.AGENT] += 3
 
         if len(text.split()) < 30 and max(scores.values()) == 0:
             return TaskType.SIMPLE
@@ -352,9 +435,7 @@ class ModelRouter:
             task_type = self.classify_task(messages)
 
         if not self._available_models:
-            raise RuntimeError(
-                "No AI providers configured. Set at least one API key in .env"
-            )
+            raise RuntimeError("No AI providers configured. Set at least one API key in .env")
 
         strategy = self.config.router_strategy
         candidates = list(self._available_models.values())

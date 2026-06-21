@@ -94,12 +94,15 @@ class TestReadinessProbe:
 
             async def _hang(c):
                 import asyncio
+
                 await asyncio.sleep(9999)
 
             with (
                 patch("aicos.api.routes._build_gateway", side_effect=_hang),
                 patch("aicos.db.migrations.run_migrations", new_callable=AsyncMock),
-                patch("aicos.core.database.build_engine", return_value=MagicMock(dispose=AsyncMock())),
+                patch(
+                    "aicos.core.database.build_engine", return_value=MagicMock(dispose=AsyncMock())
+                ),
                 patch("aicos.api.routes.APIKeyStore", return_value=ks),
             ):
                 app = create_app(config=cfg)

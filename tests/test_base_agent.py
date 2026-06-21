@@ -8,15 +8,15 @@ _execute_tool(), and _parse_structured_output().
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from aicos.agents.base_agent import AgentResult, BaseAgent, MaxStepsExceeded, Tool
+from aicos.agents.base_agent import BaseAgent, MaxStepsExceededError, Tool
 from aicos.core.gateway import GatewayResponse
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _resp(content: str, input_tokens: int = 10, output_tokens: int = 20) -> GatewayResponse:
     return GatewayResponse(
@@ -44,24 +44,27 @@ def _raw_resp(content: str, tool_calls: list[dict]) -> MagicMock:
     mock.input_tokens = 10
     mock.output_tokens = 10
     mock.raw = {
-        "choices": [{
-            "message": {
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": tc["name"],
-                            "arguments": json.dumps(tc.get("arguments", {})),
+        "choices": [
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": json.dumps(tc.get("arguments", {})),
+                            }
                         }
-                    }
-                    for tc in tool_calls
-                ]
+                        for tc in tool_calls
+                    ]
+                }
             }
-        }]
+        ]
     }
     return mock
 
 
 # ── Concrete test agent ───────────────────────────────────────────────────────
+
 
 class _AddAgent(BaseAgent):
     """Minimal concrete agent used throughout these tests."""
@@ -112,6 +115,7 @@ def agent(mock_gw: MagicMock) -> _AddAgent:
 
 # ── run() loop — lines 128–165 ────────────────────────────────────────────────
 
+
 class TestRunLoop:
     @pytest.mark.asyncio
     async def test_immediate_final_answer(self, agent, mock_gw) -> None:
@@ -127,7 +131,9 @@ class TestRunLoop:
     @pytest.mark.asyncio
     async def test_tokens_accumulated_single_step(self, agent, mock_gw) -> None:
         """tokens_used = input + output for the single response."""
-        mock_gw.process = AsyncMock(return_value=_resp('{"ok": true}', input_tokens=7, output_tokens=13))
+        mock_gw.process = AsyncMock(
+            return_value=_resp('{"ok": true}', input_tokens=7, output_tokens=13)
+        )
         result = await agent.run("hi")
         assert result.tokens_used == 20
 
@@ -149,7 +155,9 @@ class TestRunLoop:
     @pytest.mark.asyncio
     async def test_tokens_accumulated_across_steps(self, agent, mock_gw) -> None:
         """tokens_used sums across the tool-call step and the final step."""
-        tool_resp = _resp('{"tool": "add", "args": {"a": 1, "b": 1}}', input_tokens=10, output_tokens=10)
+        tool_resp = _resp(
+            '{"tool": "add", "args": {"a": 1, "b": 1}}', input_tokens=10, output_tokens=10
+        )
         final_resp = _resp('{"result": 2}', input_tokens=15, output_tokens=5)
         mock_gw.process = AsyncMock(side_effect=[tool_resp, final_resp])
 
@@ -166,7 +174,9 @@ class TestRunLoop:
         await agent.run("compute 2+3")
 
         second_call_messages = mock_gw.process.call_args_list[1][0][0].messages
-        tool_msg = next(m for m in second_call_messages if "Tool 'add' returned" in m.get("content", ""))
+        tool_msg = next(
+            m for m in second_call_messages if "Tool 'add' returned" in m.get("content", "")
+        )
         assert '"result": 5' in tool_msg["content"]
 
     @pytest.mark.asyncio
@@ -199,12 +209,12 @@ class TestRunLoop:
 
     @pytest.mark.asyncio
     async def test_max_steps_exceeded(self, mock_gw) -> None:
-        """When every step returns a tool call, MaxStepsExceeded is raised."""
+        """When every step returns a tool call, MaxStepsExceededError is raised."""
         agent = _AddAgent(gateway=mock_gw, max_steps=2)
         always_tool = _resp('{"tool": "add", "args": {"a": 1, "b": 1}}')
         mock_gw.process = AsyncMock(return_value=always_tool)
 
-        with pytest.raises(MaxStepsExceeded):
+        with pytest.raises(MaxStepsExceededError):
             await agent.run("loop forever")
 
     @pytest.mark.asyncio
@@ -244,17 +254,20 @@ class TestRunLoop:
 
 # ── _extract_tool_calls — lines 167–200 ──────────────────────────────────────
 
+
 class TestExtractToolCalls:
     def test_openai_format_single_tool(self, agent) -> None:
         """lines 174-185: OpenAI choices → message → tool_calls."""
         raw = {
-            "choices": [{
-                "message": {
-                    "tool_calls": [{
-                        "function": {"name": "add", "arguments": '{"a": 1, "b": 2}'}
-                    }]
+            "choices": [
+                {
+                    "message": {
+                        "tool_calls": [
+                            {"function": {"name": "add", "arguments": '{"a": 1, "b": 2}'}}
+                        ]
+                    }
                 }
-            }]
+            ]
         }
         result = agent._extract_tool_calls("", raw)
         assert len(result) == 1
@@ -264,14 +277,16 @@ class TestExtractToolCalls:
     def test_openai_format_multiple_tools(self, agent) -> None:
         """Multiple tool_calls parsed from OpenAI format."""
         raw = {
-            "choices": [{
-                "message": {
-                    "tool_calls": [
-                        {"function": {"name": "add", "arguments": '{"a": 1, "b": 1}'}},
-                        {"function": {"name": "add", "arguments": '{"a": 2, "b": 2}'}},
-                    ]
+            "choices": [
+                {
+                    "message": {
+                        "tool_calls": [
+                            {"function": {"name": "add", "arguments": '{"a": 1, "b": 1}'}},
+                            {"function": {"name": "add", "arguments": '{"a": 2, "b": 2}'}},
+                        ]
+                    }
                 }
-            }]
+            ]
         }
         result = agent._extract_tool_calls("", raw)
         assert len(result) == 2
@@ -319,18 +334,13 @@ class TestExtractToolCalls:
 
     def test_openai_format_missing_arguments_defaults_to_empty(self, agent) -> None:
         """Missing 'arguments' key in function → defaults to '{}'."""
-        raw = {
-            "choices": [{
-                "message": {
-                    "tool_calls": [{"function": {"name": "add"}}]
-                }
-            }]
-        }
+        raw = {"choices": [{"message": {"tool_calls": [{"function": {"name": "add"}}]}}]}
         result = agent._extract_tool_calls("", raw)
         assert result[0]["arguments"] == {}
 
 
 # ── _execute_tool — lines 202–212 ────────────────────────────────────────────
+
 
 class TestExecuteTool:
     @pytest.mark.asyncio
@@ -364,6 +374,7 @@ class TestExecuteTool:
 
 # ── _parse_structured_output — lines 214–230 ─────────────────────────────────
 
+
 class TestParseStructuredOutput:
     def test_markdown_json_block(self, agent) -> None:
         """lines 217-222: extracts JSON from ```json ... ``` fence."""
@@ -384,7 +395,7 @@ class TestParseStructuredOutput:
 
     def test_invalid_markdown_json_falls_to_raw_attempt(self, agent) -> None:
         """lines 221-222: bad JSON inside fence → falls through to raw attempt."""
-        content = '```json\n{invalid}\n```'
+        content = "```json\n{invalid}\n```"
         result = agent._parse_structured_output(content)
         assert "output" in result  # ends up in fallback
 

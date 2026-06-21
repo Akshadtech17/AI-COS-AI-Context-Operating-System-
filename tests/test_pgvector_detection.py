@@ -5,11 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import pytest
 
-from aicos.memory.memory_store import MemoryStore
 from aicos.memory.embeddings import EmbeddingEngine
+from aicos.memory.memory_store import MemoryStore
 
 
 @pytest.fixture
@@ -48,9 +47,7 @@ async def test_pgvector_false_falls_back_to_json_search(
 
 
 @pytest.mark.asyncio
-async def test_pgvector_true_uses_fast_path(
-    tmp_path: Path, embedding_engine: EmbeddingEngine
-):
+async def test_pgvector_true_uses_fast_path(tmp_path: Path, embedding_engine: EmbeddingEngine):
     """When _pgvector is True, search() delegates to _search_pgvector."""
     store = MemoryStore(
         database_url=f"sqlite+aiosqlite:///{tmp_path}/mem.db",
@@ -85,8 +82,6 @@ async def test_store_sets_embedding_vec_when_pgvector(
 
     executed_sql: list[str] = []
 
-    original_factory = store._session_factory
-
     class _MockSession:
         async def __aenter__(self):
             return self
@@ -94,10 +89,17 @@ async def test_store_sets_embedding_vec_when_pgvector(
         async def __aexit__(self, *args):
             pass
 
-        async def flush(self): pass
-        async def commit(self): pass
-        async def refresh(self, item): pass
-        async def scalar(self, *args): return 0
+        async def flush(self):
+            pass
+
+        async def commit(self):
+            pass
+
+        async def refresh(self, item):
+            pass
+
+        async def scalar(self, *args):
+            return 0
 
         def add(self, item):
             item.id = 42
@@ -126,6 +128,7 @@ async def test_database_url_validation_asyncpg():
 def test_require_asyncpg_skips_non_asyncpg_urls():
     """Non-asyncpg URLs do not trigger the asyncpg import check."""
     from aicos.core.database import _require_asyncpg
+
     # Should not raise even if asyncpg is absent
     _require_asyncpg("postgresql://user:pw@localhost/db")
     _require_asyncpg("sqlite+aiosqlite:///some.db")

@@ -58,6 +58,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if self._redis_url and self._redis is None:
             try:
                 import redis.asyncio as aioredis  # type: ignore[import]
+
                 self._redis = await aioredis.from_url(
                     self._redis_url,
                     encoding="utf-8",
@@ -75,7 +76,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def _redis_check(self, key: str) -> bool:
         try:
-            import redis.asyncio as aioredis  # type: ignore[import]
             r = self._redis
             now = time.time()
             window_start = now - self._window
@@ -91,7 +91,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             count: int = results[2]
             return count <= self._rpm
         except Exception as exc:
-            log.warning("Redis rate limit check failed, allowing request", extra={"error": str(exc)})
+            log.warning(
+                "Redis rate limit check failed, allowing request", extra={"error": str(exc)}
+            )
             return True  # Fail open on Redis error
 
     async def _local_check(self, key: str) -> bool:
