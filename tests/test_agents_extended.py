@@ -8,13 +8,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from aicos.agents.base_agent import AgentResult, BaseAgent, MaxStepsExceeded, Tool
+from aicos.agents.base_agent import AgentResult, Tool
 from aicos.agents.coding_agent import CodingAgent
 from aicos.agents.startup_agent import StartupAgent
 from aicos.core.gateway import GatewayResponse
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _json_response(data: Any) -> GatewayResponse:
     return GatewayResponse(
@@ -63,6 +63,7 @@ def mock_gateway():
 
 # ── StartupAgent ──────────────────────────────────────────────────────────────
 
+
 class TestStartupAgentInit:
     def test_creates_tools(self, mock_gateway) -> None:
         agent = StartupAgent(gateway=mock_gateway)
@@ -99,12 +100,14 @@ class TestStartupAgentTools:
     @pytest.fixture
     def agent(self, mock_gateway) -> StartupAgent:
         mock_gateway.process = AsyncMock(
-            return_value=_json_response({
-                "tam_usd": 1_000_000_000,
-                "growth_rate_yoy_pct": 25,
-                "key_trends": ["AI adoption"],
-                "market_maturity": "growing",
-            })
+            return_value=_json_response(
+                {
+                    "tam_usd": 1_000_000_000,
+                    "growth_rate_yoy_pct": 25,
+                    "key_trends": ["AI adoption"],
+                    "market_maturity": "growing",
+                }
+            )
         )
         return StartupAgent(gateway=mock_gateway)
 
@@ -173,9 +176,7 @@ class TestStartupAgentTools:
 
     @pytest.mark.asyncio
     async def test_call_llm_handles_invalid_json(self, agent, mock_gateway) -> None:
-        mock_gateway.process = AsyncMock(
-            return_value=_text_response("This is not JSON at all")
-        )
+        mock_gateway.process = AsyncMock(return_value=_text_response("This is not JSON at all"))
         result = await agent._call_llm("Some prompt")
         assert isinstance(result, dict)
         assert "raw" in result
@@ -190,6 +191,7 @@ class TestStartupAgentTools:
 
 
 # ── CodingAgent ───────────────────────────────────────────────────────────────
+
 
 class TestCodingAgentInit:
     def test_creates_tools(self, mock_gateway) -> None:
@@ -221,11 +223,13 @@ class TestCodingAgentTools:
     @pytest.mark.asyncio
     async def test_generate_code_returns_dict(self, agent, mock_gateway) -> None:
         mock_gateway.process = AsyncMock(
-            return_value=_json_response({
-                "code": "def hello(): pass",
-                "filename": "hello.py",
-                "dependencies": [],
-            })
+            return_value=_json_response(
+                {
+                    "code": "def hello(): pass",
+                    "filename": "hello.py",
+                    "dependencies": [],
+                }
+            )
         )
         result = await agent._generate_code("hello function", "python")
         assert isinstance(result, dict)
@@ -236,7 +240,8 @@ class TestCodingAgentTools:
             return_value=_json_response({"code": "...", "filename": "app.py"})
         )
         result = await agent._generate_code(
-            "FastAPI endpoint", "python",
+            "FastAPI endpoint",
+            "python",
             requirements=["async", "Pydantic validation"],
             constraints=["no external deps"],
         )
@@ -245,12 +250,14 @@ class TestCodingAgentTools:
     @pytest.mark.asyncio
     async def test_review_code_returns_dict(self, agent, mock_gateway) -> None:
         mock_gateway.process = AsyncMock(
-            return_value=_json_response({
-                "overall_rating": 8,
-                "summary": "Clean code",
-                "bugs": [],
-                "security_issues": [],
-            })
+            return_value=_json_response(
+                {
+                    "overall_rating": 8,
+                    "summary": "Clean code",
+                    "bugs": [],
+                    "security_issues": [],
+                }
+            )
         )
         result = await agent._review_code("def foo(): pass", "python")
         assert isinstance(result, dict)
@@ -266,11 +273,13 @@ class TestCodingAgentTools:
     @pytest.mark.asyncio
     async def test_generate_tests_returns_dict(self, agent, mock_gateway) -> None:
         mock_gateway.process = AsyncMock(
-            return_value=_json_response({
-                "test_code": "def test_foo(): pass",
-                "framework": "pytest",
-                "test_count": 5,
-            })
+            return_value=_json_response(
+                {
+                    "test_code": "def test_foo(): pass",
+                    "framework": "pytest",
+                    "test_count": 5,
+                }
+            )
         )
         result = await agent._generate_tests("def foo(): return 1", "python")
         assert isinstance(result, dict)
@@ -284,17 +293,21 @@ class TestCodingAgentTools:
     @pytest.mark.asyncio
     async def test_plan_architecture_returns_dict(self, agent, mock_gateway) -> None:
         mock_gateway.process = AsyncMock(
-            return_value=_json_response({
-                "architecture_style": "microservices",
-                "components": [],
-            })
+            return_value=_json_response(
+                {
+                    "architecture_style": "microservices",
+                    "components": [],
+                }
+            )
         )
         result = await agent._plan_architecture("E-commerce platform")
         assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_plan_architecture_with_scale(self, agent, mock_gateway) -> None:
-        mock_gateway.process = AsyncMock(return_value=_json_response({"architecture_style": "monolith"}))
+        mock_gateway.process = AsyncMock(
+            return_value=_json_response({"architecture_style": "monolith"})
+        )
         result = await agent._plan_architecture("Blog", scale="prototype")
         assert isinstance(result, dict)
 
@@ -313,16 +326,20 @@ class TestCodingAgentTools:
 
     @pytest.mark.asyncio
     async def test_run_code_task_sets_language(self, agent, mock_gateway) -> None:
-        mock_gateway.process = AsyncMock(
-            return_value=_text_response('{"output": "done"}')
-        )
+        mock_gateway.process = AsyncMock(return_value=_text_response('{"output": "done"}'))
         # run() will hit max_steps with a mock that doesn't return the right format,
         # so we just verify run_code_task sets context correctly
-        agent.run = AsyncMock(return_value=AgentResult(
-            output="done", structured={}, steps=1,
-            tool_calls=[], tokens_used=100, success=True,
-        ))
-        result = await agent.run_code_task("write a sort function", language="typescript")
+        agent.run = AsyncMock(
+            return_value=AgentResult(
+                output="done",
+                structured={},
+                steps=1,
+                tool_calls=[],
+                tokens_used=100,
+                success=True,
+            )
+        )
+        await agent.run_code_task("write a sort function", language="typescript")
         agent.run.assert_called_once()
         call_kwargs = agent.run.call_args[1]
         assert call_kwargs["context"]["preferred_language"] == "typescript"
@@ -337,14 +354,13 @@ class TestCodingAgentTools:
 
     @pytest.mark.asyncio
     async def test_call_llm_handles_invalid_json(self, agent, mock_gateway) -> None:
-        mock_gateway.process = AsyncMock(
-            return_value=_text_response("here is some plain text")
-        )
+        mock_gateway.process = AsyncMock(return_value=_text_response("here is some plain text"))
         result = await agent._call_llm("prompt")
         assert "raw" in result
 
 
 # ── Tool schema ───────────────────────────────────────────────────────────────
+
 
 class TestToolSchema:
     def test_openai_schema_structure(self, mock_gateway) -> None:

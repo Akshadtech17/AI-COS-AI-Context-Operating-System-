@@ -15,14 +15,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from aicos.cache.sqlite_cache import SQLiteCache, CacheEntry
+from aicos.cache.sqlite_cache import CacheEntry, SQLiteCache
 from aicos.memory.embeddings import EmbeddingEngine
 
 
 @dataclass
 class CacheResult:
     response: str
-    hit_type: str          # "exact" | "semantic"
+    hit_type: str  # "exact" | "semantic"
     similarity: float
     latency_ms: float
     source_entry: CacheEntry | None = None

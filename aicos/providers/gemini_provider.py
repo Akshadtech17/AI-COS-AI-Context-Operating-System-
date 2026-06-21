@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
 
@@ -12,6 +13,7 @@ from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
 class GeminiProvider(BaseProvider):
     def __init__(self, api_key: str) -> None:
         import google.generativeai as genai
+
         genai.configure(api_key=api_key)
         self._genai = genai
         self._api_key = api_key
@@ -31,9 +33,7 @@ class GeminiProvider(BaseProvider):
         # Strip "gemini/" prefix used in routing
         return model.replace("gemini/", "")
 
-    def _convert_messages(
-        self, messages: list[dict[str, Any]]
-    ) -> tuple[str, list[dict[str, Any]]]:
+    def _convert_messages(self, messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
         """Convert OpenAI-format messages to Gemini format."""
         system_text = ""
         history: list[dict[str, Any]] = []

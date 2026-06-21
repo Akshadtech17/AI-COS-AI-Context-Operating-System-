@@ -11,14 +11,12 @@ All compression is deterministic and non-destructive.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
 from math import log1p
 from typing import Any
 
 import tiktoken
-
 
 # ── Token counting ────────────────────────────────────────────────────────────
 
@@ -99,6 +97,7 @@ def _restore_protected(text: str, blocks: list[ProtectedBlock]) -> str:
 
 # ── Extractive sentence scoring ───────────────────────────────────────────────
 
+
 def _score_sentences(sentences: list[str]) -> list[float]:
     """
     Score sentences by TF-IDF-like importance + positional bonus.
@@ -113,7 +112,6 @@ def _score_sentences(sentences: list[str]) -> list[float]:
         for word in re.findall(r"\b\w+\b", sent.lower()):
             word_freq[word] = word_freq.get(word, 0) + 1
 
-    total_words = sum(word_freq.values()) or 1
     n = len(sentences)
     scores: list[float] = []
 
@@ -185,6 +183,7 @@ def _compress_text(text: str, budget_tokens: int, model: str = "gpt-4o-mini") ->
 
 # ── Message-level compression ─────────────────────────────────────────────────
 
+
 @dataclass
 class CompressionResult:
     messages: list[dict[str, Any]]
@@ -246,31 +245,26 @@ class ContextCompressor:
 
         # System tokens are untouchable
         system_tokens = sum(
-            count_tokens(str(m.get("content", "")), self._model) + 4
-            for m in system_msgs
+            count_tokens(str(m.get("content", "")), self._model) + 4 for m in system_msgs
         )
         available = budget - system_tokens - 3  # base overhead
 
         # Preserve last N turns verbatim
         if len(conv_msgs) > self._preserve_last_turns * 2:
-            preserve_msgs = conv_msgs[-(self._preserve_last_turns * 2):]
-            compress_msgs = conv_msgs[:-(self._preserve_last_turns * 2)]
+            preserve_msgs = conv_msgs[-(self._preserve_last_turns * 2) :]
+            compress_msgs = conv_msgs[: -(self._preserve_last_turns * 2)]
         else:
             preserve_msgs = conv_msgs
             compress_msgs = []
 
         preserve_tokens = sum(
-            count_tokens(str(m.get("content", "")), self._model) + 4
-            for m in preserve_msgs
+            count_tokens(str(m.get("content", "")), self._model) + 4 for m in preserve_msgs
         )
         compress_budget = available - preserve_tokens
 
         if compress_msgs and compress_budget > 0:
             per_msg_budget = max(50, compress_budget // len(compress_msgs))
-            compressed_msgs = [
-                self._compress_message(m, per_msg_budget)
-                for m in compress_msgs
-            ]
+            compressed_msgs = [self._compress_message(m, per_msg_budget) for m in compress_msgs]
         else:
             compressed_msgs = compress_msgs
 
@@ -286,9 +280,7 @@ class ContextCompressor:
             compression_ratio=ratio,
         )
 
-    def _compress_message(
-        self, message: dict[str, Any], budget: int
-    ) -> dict[str, Any]:
+    def _compress_message(self, message: dict[str, Any], budget: int) -> dict[str, Any]:
         """Compress a single message's content."""
         content = message.get("content", "")
         if not isinstance(content, str):
@@ -302,9 +294,7 @@ class ContextCompressor:
         processed, blocks = _extract_protected(content)
 
         # Calculate tokens used by protected blocks
-        protected_tokens = sum(
-            count_tokens(b.content, self._model) for b in blocks
-        )
+        protected_tokens = sum(count_tokens(b.content, self._model) for b in blocks)
         text_budget = max(20, budget - protected_tokens)
 
         # Compress only the natural language parts

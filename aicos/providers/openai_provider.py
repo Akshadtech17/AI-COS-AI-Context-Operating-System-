@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
 
@@ -12,6 +13,7 @@ from aicos.providers.base import BaseProvider, ProviderResponse, StreamChunk
 class OpenAIProvider(BaseProvider):
     def __init__(self, api_key: str, base_url: str | None = None) -> None:
         import openai
+
         self._client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
         self._api_key = api_key
 

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 SUMMARIZE_SYSTEM_PROMPT = """\
 You are a precise conversation summarizer.
 Summarize the provided conversation turns into a dense, factual summary.
@@ -36,9 +35,7 @@ class ConversationSummarizer:
         self._model = model
         self._max_summary_tokens = max_summary_tokens
 
-    async def summarize_turns(
-        self, turns: list[dict[str, Any]]
-    ) -> str:
+    async def summarize_turns(self, turns: list[dict[str, Any]]) -> str:
         """
         Generate a summary of conversation turns.
 

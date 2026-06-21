@@ -65,8 +65,8 @@ class HashEmbeddingModel:
 
         # Character n-grams (3-4 grams) from full text
         compact = normalized.replace(" ", "")
-        features.extend(compact[i:i+3] for i in range(len(compact) - 2))
-        features.extend(compact[i:i+4] for i in range(len(compact) - 3))
+        features.extend(compact[i : i + 3] for i in range(len(compact) - 2))
+        features.extend(compact[i : i + 4] for i in range(len(compact) - 3))
 
         return features
 
@@ -176,9 +176,7 @@ class EmbeddingEngine:
             top_indices = np.argsort(scores)[::-1]
 
         return [
-            (int(idx), float(scores[idx]))
-            for idx in top_indices
-            if float(scores[idx]) >= threshold
+            (int(idx), float(scores[idx])) for idx in top_indices if float(scores[idx]) >= threshold
         ]
 
     def clear_cache(self) -> None:

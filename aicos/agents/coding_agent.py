@@ -13,12 +13,10 @@ Capabilities:
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
-from aicos.agents.base_agent import BaseAgent, AgentResult, Tool
+from aicos.agents.base_agent import AgentResult, BaseAgent, Tool
 from aicos.core.gateway import AIGateway, GatewayRequest
-
 
 CODING_SYSTEM_PROMPT = """\
 You are a senior software engineer and architect with 15+ years of experience.
@@ -140,10 +138,7 @@ class CodingAgent(BaseAgent):
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are an expert software engineer. "
-                    "Respond with valid JSON only."
-                ),
+                "content": ("You are an expert software engineer. Respond with valid JSON only."),
             },
             {"role": "user", "content": prompt},
         ]

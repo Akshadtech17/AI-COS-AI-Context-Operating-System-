@@ -9,13 +9,15 @@ import pytest
 from aicos.context.summarizer import ConversationSummarizer
 from aicos.memory.retrieval import MemoryRetriever
 
-
 # ── ConversationSummarizer ────────────────────────────────────────────────────
+
 
 class TestConversationSummarizer:
     @pytest.fixture
     def mock_llm(self):
-        return AsyncMock(return_value="Context Recap: User asked about Python. • Python is versatile.")
+        return AsyncMock(
+            return_value="Context Recap: User asked about Python. • Python is versatile."
+        )
 
     @pytest.fixture
     def summarizer(self, mock_llm):
@@ -47,9 +49,7 @@ class TestConversationSummarizer:
 
     @pytest.mark.asyncio
     async def test_summarize_passes_model_and_max_tokens(self, mock_llm) -> None:
-        s = ConversationSummarizer(
-            llm_caller=mock_llm, model="gpt-4o-mini", max_summary_tokens=200
-        )
+        s = ConversationSummarizer(llm_caller=mock_llm, model="gpt-4o-mini", max_summary_tokens=200)
         turns = [{"role": "user", "content": "Hello"}]
         await s.summarize_turns(turns)
         _, kwargs = mock_llm.call_args
@@ -83,6 +83,7 @@ class TestConversationSummarizer:
 
 
 # ── MemoryRetriever ───────────────────────────────────────────────────────────
+
 
 class TestMemoryRetriever:
     @pytest.mark.asyncio
@@ -177,9 +178,7 @@ class TestMemoryRetriever:
         assert "Retrieved" in text or "No relevant" in text
 
     @pytest.mark.asyncio
-    async def test_format_for_display_no_memories(
-        self, memory_retriever: MemoryRetriever
-    ) -> None:
+    async def test_format_for_display_no_memories(self, memory_retriever: MemoryRetriever) -> None:
         text = await memory_retriever.format_for_display("something obscure")
         assert "No relevant memories" in text
 

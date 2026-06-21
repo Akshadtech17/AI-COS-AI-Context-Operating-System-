@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
@@ -39,12 +39,13 @@ _PG_LOCK_TIMEOUT_S = 30.0
 
 # ── Migration definitions ─────────────────────────────────────────────────────
 
+
 async def m001_initial_schema(conn: AsyncConnection) -> None:
     """Create all tables for the initial schema."""
-    from aicos.cache.sqlite_cache import Base as CacheBase
-    from aicos.memory.memory_store import Base as MemoryBase
     from aicos.analytics.cost_tracker import _CostBase
     from aicos.auth.api_keys import _Base as KeyBase
+    from aicos.cache.sqlite_cache import Base as CacheBase
+    from aicos.memory.memory_store import Base as MemoryBase
 
     await conn.run_sync(CacheBase.metadata.create_all)
     await conn.run_sync(MemoryBase.metadata.create_all)
@@ -66,30 +67,33 @@ async def m002_add_pgvector(conn: AsyncConnection) -> None:
         return
 
     from aicos.core.config import get_config
+
     dim = get_config().embedding_dim
 
     try:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
-        await conn.execute(text(
-            f"ALTER TABLE memories "
-            f"ADD COLUMN IF NOT EXISTS embedding_vec vector({dim})"
-        ))
-        await conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_memories_embedding_vec "
-            "ON memories USING ivfflat (embedding_vec vector_cosine_ops) "
-            "WITH (lists = 100)"
-        ))
+        await conn.execute(
+            text(f"ALTER TABLE memories ADD COLUMN IF NOT EXISTS embedding_vec vector({dim})")
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_memories_embedding_vec "
+                "ON memories USING ivfflat (embedding_vec vector_cosine_ops) "
+                "WITH (lists = 100)"
+            )
+        )
 
-        await conn.execute(text(
-            f"ALTER TABLE cache_entries "
-            f"ADD COLUMN IF NOT EXISTS embedding_vec vector({dim})"
-        ))
-        await conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_cache_embedding_vec "
-            "ON cache_entries USING ivfflat (embedding_vec vector_cosine_ops) "
-            "WITH (lists = 100)"
-        ))
+        await conn.execute(
+            text(f"ALTER TABLE cache_entries ADD COLUMN IF NOT EXISTS embedding_vec vector({dim})")
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_cache_embedding_vec "
+                "ON cache_entries USING ivfflat (embedding_vec vector_cosine_ops) "
+                "WITH (lists = 100)"
+            )
+        )
         log.info("pgvector column + index created", extra={"dim": dim})
     except Exception as exc:
         log.warning(
@@ -106,6 +110,7 @@ MIGRATIONS: list[tuple[str, MigrationFn]] = [
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 
+
 async def run_migrations(engine: AsyncEngine) -> None:
     """
     Apply all pending migrations in order.
@@ -115,12 +120,14 @@ async def run_migrations(engine: AsyncEngine) -> None:
     is_pg = not str(engine.url).startswith("sqlite")
 
     async with engine.begin() as conn:
-        await conn.execute(text("""
+        await conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS schema_migrations (
                 id         TEXT PRIMARY KEY,
                 applied_at REAL NOT NULL
             )
-        """))
+        """)
+        )
 
     if is_pg:
         await _run_with_pg_lock(engine)

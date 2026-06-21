@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import sys
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import orjson
@@ -24,12 +24,33 @@ import orjson
 _request_id: ContextVar[str] = ContextVar("request_id", default="")
 _session_id: ContextVar[str] = ContextVar("session_id", default="")
 
-_BUILTIN_ATTRS = frozenset({
-    "args", "asctime", "created", "exc_info", "exc_text", "filename",
-    "funcName", "levelname", "levelno", "lineno", "message", "module",
-    "msecs", "msg", "name", "pathname", "process", "processName",
-    "relativeCreated", "stack_info", "thread", "threadName", "taskName",
-})
+_BUILTIN_ATTRS = frozenset(
+    {
+        "args",
+        "asctime",
+        "created",
+        "exc_info",
+        "exc_text",
+        "filename",
+        "funcName",
+        "levelname",
+        "levelno",
+        "lineno",
+        "message",
+        "module",
+        "msecs",
+        "msg",
+        "name",
+        "pathname",
+        "process",
+        "processName",
+        "relativeCreated",
+        "stack_info",
+        "thread",
+        "threadName",
+        "taskName",
+    }
+)
 
 
 def get_request_id() -> str:
@@ -48,7 +69,7 @@ class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         record.message = record.getMessage()
         data: dict[str, Any] = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "msg": record.message,
@@ -83,7 +104,7 @@ class _TextFormatter(logging.Formatter):
         color = self._COLORS.get(record.levelname, "")
         rid = _request_id.get("")
         rid_part = f" [{rid[:8]}]" if rid else ""
-        ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        ts = datetime.now(UTC).strftime("%H:%M:%S")
         return (
             f"{color}{ts} {record.levelname:8}{self._RESET}"
             f"{rid_part} {record.name}: {record.getMessage()}"

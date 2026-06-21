@@ -10,10 +10,10 @@ Architecture:
 
 from __future__ import annotations
 
-import inspect
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from aicos.core.gateway import AIGateway, GatewayRequest
 
@@ -47,7 +47,7 @@ class AgentResult:
     error: str | None = None
 
 
-class MaxStepsExceeded(Exception):
+class MaxStepsExceededError(Exception):
     pass
 
 
@@ -142,10 +142,12 @@ class BaseAgent:
                     all_tool_calls.append({"name": tool_name, "args": tool_args, "step": step})
 
                     tool_result = await self._execute_tool(tool_name, tool_args)
-                    messages.append({
-                        "role": "user",
-                        "content": f"Tool '{tool_name}' returned:\n{json.dumps(tool_result, indent=2)}",
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"Tool '{tool_name}' returned:\n{json.dumps(tool_result, indent=2)}",
+                        }
+                    )
             else:
                 # Final answer — try to parse as JSON
                 output = response.content.strip()
@@ -160,7 +162,7 @@ class BaseAgent:
                     success=True,
                 )
 
-        raise MaxStepsExceeded(
+        raise MaxStepsExceededError(
             f"Agent '{self.__class__.__name__}' exceeded {self._max_steps} steps"
         )
 

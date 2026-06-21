@@ -50,8 +50,7 @@ def _setup_otel(endpoint: str, service_name: str, environment: str) -> None:
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
     except ImportError:
         log.warning(
-            "opentelemetry-sdk not installed — tracing disabled. "
-            "Fix: pip install 'aicos[otel]'"
+            "opentelemetry-sdk not installed — tracing disabled. Fix: pip install 'aicos[otel]'"
         )
         return
 
@@ -64,10 +63,12 @@ def _setup_otel(endpoint: str, service_name: str, environment: str) -> None:
         )
         return
 
-    resource = Resource.create({
-        "service.name": service_name,
-        "deployment.environment": environment,
-    })
+    resource = Resource.create(
+        {
+            "service.name": service_name,
+            "deployment.environment": environment,
+        }
+    )
     provider = TracerProvider(resource=resource)
     exporter = OTLPSpanExporter(endpoint=endpoint)
     provider.add_span_processor(BatchSpanProcessor(exporter))
@@ -82,6 +83,7 @@ def _setup_otel(endpoint: str, service_name: str, environment: str) -> None:
 def _instrument_fastapi() -> None:
     try:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
         FastAPIInstrumentor().instrument()
     except ImportError:
         log.warning("opentelemetry-instrumentation-fastapi not installed — FastAPI spans skipped")
@@ -90,6 +92,7 @@ def _instrument_fastapi() -> None:
 def _instrument_sqlalchemy() -> None:
     try:
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
         SQLAlchemyInstrumentor().instrument()
     except ImportError:
         log.warning("opentelemetry-instrumentation-sqlalchemy not installed — DB spans skipped")
@@ -101,8 +104,7 @@ def _setup_sentry(dsn: str, environment: str) -> None:
         import sentry_sdk
     except ImportError:
         log.warning(
-            "sentry-sdk not installed — error tracking disabled. "
-            "Fix: pip install 'aicos[sentry]'"
+            "sentry-sdk not installed — error tracking disabled. Fix: pip install 'aicos[sentry]'"
         )
         return
 
@@ -111,12 +113,14 @@ def _setup_sentry(dsn: str, environment: str) -> None:
     try:
         from sentry_sdk.integrations.fastapi import FastApiIntegration
         from sentry_sdk.integrations.starlette import StarletteIntegration
+
         integrations.extend([StarletteIntegration(), FastApiIntegration()])
     except ImportError:
         pass
 
     try:
         from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
         integrations.append(SqlalchemyIntegration())
     except ImportError:
         pass

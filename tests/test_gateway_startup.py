@@ -38,6 +38,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_returns_gateway_and_memory_store(self, startup_config) -> None:
         from aicos.api.routes import _build_gateway
+
         gateway, memory_store = await _build_gateway(startup_config)
         try:
             assert gateway is not None
@@ -48,6 +49,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_gateway_has_provider(self, startup_config) -> None:
         from aicos.api.routes import _build_gateway
+
         gateway, memory_store = await _build_gateway(startup_config)
         try:
             assert "openai" in gateway._providers
@@ -57,6 +59,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_gateway_has_cache(self, startup_config) -> None:
         from aicos.api.routes import _build_gateway
+
         gateway, memory_store = await _build_gateway(startup_config)
         try:
             assert gateway._cache is not None
@@ -66,6 +69,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_gateway_has_memory_retriever(self, startup_config) -> None:
         from aicos.api.routes import _build_gateway
+
         gateway, memory_store = await _build_gateway(startup_config)
         try:
             assert gateway._memory is not None
@@ -75,6 +79,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_gateway_has_router(self, startup_config) -> None:
         from aicos.api.routes import _build_gateway
+
         gateway, memory_store = await _build_gateway(startup_config)
         try:
             assert gateway._router is not None
@@ -84,6 +89,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_gateway_has_history_manager(self, startup_config) -> None:
         from aicos.api.routes import _build_gateway
+
         gateway, memory_store = await _build_gateway(startup_config)
         try:
             assert gateway._history is not None
@@ -93,6 +99,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_cache_disabled(self, tmp_path) -> None:
         from aicos.api.routes import _build_gateway
+
         cfg = AICOSConfig(
             openai_api_key="sk-test",
             db_path=str(tmp_path / "aicos.db"),
@@ -109,6 +116,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_memory_disabled(self, tmp_path) -> None:
         from aicos.api.routes import _build_gateway
+
         cfg = AICOSConfig(
             openai_api_key="sk-test",
             db_path=str(tmp_path / "aicos.db"),
@@ -125,6 +133,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_no_providers_when_no_keys(self, tmp_path) -> None:
         from aicos.api.routes import _build_gateway
+
         cfg = AICOSConfig(
             openai_api_key=None,
             anthropic_api_key=None,
@@ -145,6 +154,7 @@ class TestBuildGateway:
     @pytest.mark.asyncio
     async def test_multiple_providers(self, tmp_path) -> None:
         from aicos.api.routes import _build_gateway
+
         cfg = AICOSConfig(
             openai_api_key="sk-openai-test",
             openrouter_api_key="sk-or-test",

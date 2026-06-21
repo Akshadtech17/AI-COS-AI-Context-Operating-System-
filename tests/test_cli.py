@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from aicos.cli.main import app
@@ -30,7 +29,9 @@ def _make_mock_ai(
             "created_at": "2026-01-01T00:00:00",
         }
     ]
-    ai.asearch_memory = AsyncMock(return_value=default_results if search_results is None else search_results)
+    ai.asearch_memory = AsyncMock(
+        return_value=default_results if search_results is None else search_results
+    )
     ai.achat = AsyncMock(return_value=chat_response)
     ai.clear_history = MagicMock()
     ai.cost_summary = {"total_tokens": 100, "cost_usd": 0.001, "requests": 1}
@@ -44,6 +45,7 @@ def _make_mock_ai(
 
 
 # ── Help / version ────────────────────────────────────────────────────────────
+
 
 class TestCLIHelp:
     def test_help(self) -> None:
@@ -84,6 +86,7 @@ class TestCLIHelp:
 
 # ── config command ────────────────────────────────────────────────────────────
 
+
 class TestConfigCommand:
     def test_config_runs_successfully(self) -> None:
         result = runner.invoke(app, ["config"])
@@ -99,6 +102,7 @@ class TestConfigCommand:
 
 
 # ── stats command ─────────────────────────────────────────────────────────────
+
 
 class TestStatsCommand:
     def test_stats_runs_successfully(self) -> None:
@@ -116,10 +120,11 @@ class TestStatsCommand:
 
 # ── start command ─────────────────────────────────────────────────────────────
 
+
 class TestStartCommand:
     def test_start_calls_uvicorn(self) -> None:
         with patch("uvicorn.run") as mock_run:
-            result = runner.invoke(app, ["start", "--port", "4001"])
+            runner.invoke(app, ["start", "--port", "4001"])
             mock_run.assert_called_once()
             call_kwargs = mock_run.call_args[1]
             assert call_kwargs["port"] == 4001
@@ -147,10 +152,15 @@ class TestStartCommand:
             with patch("aicos.core.config.AICOSConfig.available_providers", return_value=[]):
                 result = runner.invoke(app, ["start"])
         assert result.exit_code == 0
-        assert "Warning" in result.output or "warning" in result.output.lower() or "Notice" in result.output
+        assert (
+            "Warning" in result.output
+            or "warning" in result.output.lower()
+            or "Notice" in result.output
+        )
 
 
 # ── remember command ──────────────────────────────────────────────────────────
+
 
 class TestRememberCommand:
     def test_remember_success(self) -> None:
@@ -183,6 +193,7 @@ class TestRememberCommand:
 
 # ── forget command ────────────────────────────────────────────────────────────
 
+
 class TestForgetCommand:
     def test_forget_success(self) -> None:
         mock_ai = _make_mock_ai(forget_result=True)
@@ -210,17 +221,20 @@ class TestForgetCommand:
 
 # ── search command ────────────────────────────────────────────────────────────
 
+
 class TestSearchCommand:
     def test_search_with_results(self) -> None:
-        mock_ai = _make_mock_ai(search_results=[
-            {
-                "id": 1,
-                "content": "Test memory content here",
-                "score": 0.95,
-                "tags": ["test"],
-                "created_at": "2026-01-01T00:00:00",
-            }
-        ])
+        mock_ai = _make_mock_ai(
+            search_results=[
+                {
+                    "id": 1,
+                    "content": "Test memory content here",
+                    "score": 0.95,
+                    "tags": ["test"],
+                    "created_at": "2026-01-01T00:00:00",
+                }
+            ]
+        )
         with patch("aicos.AI", return_value=mock_ai):
             result = runner.invoke(app, ["search", "test query"])
         assert result.exit_code == 0
@@ -251,16 +265,24 @@ class TestSearchCommand:
         assert result.exit_code != 0
 
     def test_search_shows_score(self) -> None:
-        mock_ai = _make_mock_ai(search_results=[
-            {"id": 2, "content": "High score memory", "score": 0.98,
-             "tags": [], "created_at": "2026-01-01T00:00:00"}
-        ])
+        mock_ai = _make_mock_ai(
+            search_results=[
+                {
+                    "id": 2,
+                    "content": "High score memory",
+                    "score": 0.98,
+                    "tags": [],
+                    "created_at": "2026-01-01T00:00:00",
+                }
+            ]
+        )
         with patch("aicos.AI", return_value=mock_ai):
             result = runner.invoke(app, ["search", "high"])
         assert "0.98" in result.output or "High score" in result.output
 
 
 # ── chat command ──────────────────────────────────────────────────────────────
+
 
 class TestChatCommand:
     def test_chat_no_stream(self) -> None:
@@ -303,9 +325,9 @@ class TestChatCommand:
     def test_chat_with_system_prompt(self) -> None:
         mock_ai = _make_mock_ai(chat_response="System response")
         with patch("aicos.AI", return_value=mock_ai):
-            result = runner.invoke(app, [
-                "chat", "Hello", "--system", "You are helpful", "--no-stream"
-            ])
+            result = runner.invoke(
+                app, ["chat", "Hello", "--system", "You are helpful", "--no-stream"]
+            )
         assert result.exit_code == 0
         call_kwargs = mock_ai.achat.call_args[1]
         assert call_kwargs["system"] == "You are helpful"

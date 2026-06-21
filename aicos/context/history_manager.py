@@ -11,7 +11,7 @@ the context window, where LLM attention is strongest.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from aicos.context.compressor import ContextCompressor, count_message_tokens
@@ -59,9 +59,7 @@ class HistoryManager:
         self._preserve_turns = preserve_turns
         self._model = model
 
-    async def process(
-        self, messages: list[dict[str, Any]]
-    ) -> HistoryState:
+    async def process(self, messages: list[dict[str, Any]]) -> HistoryState:
         """
         Process messages and apply LITM + compression as needed.
         Always returns a message list safe to send to an LLM.

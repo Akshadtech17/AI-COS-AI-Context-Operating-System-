@@ -14,8 +14,8 @@ from aicos.core.config import AICOSConfig
 from aicos.core.gateway import GatewayResponse
 from aicos.providers.base import StreamChunk
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def route_config(tmp_path):
@@ -148,6 +148,7 @@ def rate_limited_client(tmp_path):
 
 # ── Health & Meta ─────────────────────────────────────────────────────────────
 
+
 class TestHealthEndpoint:
     def test_health_returns_ok(self, client) -> None:
         c, _ = client
@@ -202,6 +203,7 @@ class TestMetricsEndpoint:
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
+
 class TestDashboard:
     def test_root_serves_dashboard(self, client) -> None:
         c, _ = client
@@ -222,6 +224,7 @@ class TestDashboard:
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
+
 
 class TestModelsEndpoint:
     def test_list_models_returns_list(self, client) -> None:
@@ -244,13 +247,17 @@ class TestModelsEndpoint:
 
 # ── Chat Completions ──────────────────────────────────────────────────────────
 
+
 class TestChatCompletions:
     def test_basic_chat(self, client) -> None:
         c, _ = client
-        r = c.post("/v1/chat/completions", json={
-            "model": "auto",
-            "messages": [{"role": "user", "content": "Hello"}],
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "model": "auto",
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        )
         assert r.status_code == 200
         data = r.json()
         assert data["object"] == "chat.completion"
@@ -258,9 +265,12 @@ class TestChatCompletions:
 
     def test_response_has_openai_fields(self, client) -> None:
         c, _ = client
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
         data = r.json()
         assert "id" in data
         assert "choices" in data
@@ -269,9 +279,12 @@ class TestChatCompletions:
 
     def test_aicos_metadata_in_response(self, client) -> None:
         c, _ = client
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
         aicos = r.json()["aicos"]
         assert "cache_hit" in aicos
         assert "task_type" in aicos
@@ -280,26 +293,35 @@ class TestChatCompletions:
 
     def test_gateway_process_called(self, client) -> None:
         c, mock_gw = client
-        c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-        })
+        c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
         mock_gw.process.assert_called_once()
 
     def test_skip_cache_flag(self, client) -> None:
         c, mock_gw = client
-        c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "skip_cache": True,
-        })
+        c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "skip_cache": True,
+            },
+        )
         call_args = mock_gw.process.call_args[0][0]
         assert call_args.skip_cache is True
 
     def test_validation_rejects_invalid_temperature(self, client) -> None:
         c, _ = client
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "temperature": 5.0,  # max is 2.0
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "temperature": 5.0,  # max is 2.0
+            },
+        )
         assert r.status_code == 422
 
     def test_validation_rejects_missing_messages(self, client) -> None:
@@ -309,29 +331,43 @@ class TestChatCompletions:
 
     def test_cache_hit_response(self, client) -> None:
         c, mock_gw = client
-        mock_gw.process = AsyncMock(return_value=_make_response(
-            cache_hit=True, cache_hit_type="semantic", cost_usd=0.0,
-        ))
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "Hello"}],
-        })
+        mock_gw.process = AsyncMock(
+            return_value=_make_response(
+                cache_hit=True,
+                cache_hit_type="semantic",
+                cost_usd=0.0,
+            )
+        )
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        )
         assert r.json()["aicos"]["cache_hit"] is True
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
+
 class TestAuthentication:
     def test_no_key_required_without_config(self, client) -> None:
         c, _ = client
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
         assert r.status_code == 200
 
     def test_missing_key_returns_401(self, auth_client) -> None:
-        r = auth_client.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-        })
+        r = auth_client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
         assert r.status_code == 401
 
     def test_wrong_key_returns_403(self, auth_client) -> None:
@@ -353,6 +389,7 @@ class TestAuthentication:
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
+
 class TestCORS:
     def test_cors_headers_present(self, client) -> None:
         c, _ = client
@@ -368,69 +405,92 @@ class TestCORS:
 
 # ── Streaming ─────────────────────────────────────────────────────────────────
 
+
 class TestStreaming:
     @staticmethod
     async def _stream_chunks(request):
         yield StreamChunk(delta="Hello", model="gpt-4o-mini")
         yield StreamChunk(delta=" world", model="gpt-4o-mini")
         yield StreamChunk(
-            delta="", model="gpt-4o-mini", finish_reason="stop",
-            input_tokens=5, output_tokens=2,
+            delta="",
+            model="gpt-4o-mini",
+            finish_reason="stop",
+            input_tokens=5,
+            output_tokens=2,
         )
 
     def test_streaming_returns_200(self, client) -> None:
         c, mock_gw = client
         mock_gw.stream = self._stream_chunks
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "stream": True,
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
         assert r.status_code == 200
 
     def test_streaming_content_type_is_sse(self, client) -> None:
         c, mock_gw = client
         mock_gw.stream = self._stream_chunks
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "stream": True,
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
         assert "text/event-stream" in r.headers.get("content-type", "")
 
     def test_streaming_body_contains_done(self, client) -> None:
         c, mock_gw = client
         mock_gw.stream = self._stream_chunks
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "stream": True,
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
         assert "[DONE]" in r.text
 
     def test_streaming_body_contains_json_chunks(self, client) -> None:
         c, mock_gw = client
         mock_gw.stream = self._stream_chunks
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "stream": True,
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
         assert "chat.completion.chunk" in r.text
 
     def test_streaming_non_streaming_are_different(self, client) -> None:
         c, mock_gw = client
         mock_gw.stream = self._stream_chunks
-        r_stream = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "stream": True,
-        })
-        r_sync = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "stream": False,
-        })
+        r_stream = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
+        r_sync = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": False,
+            },
+        )
         # Stream response contains SSE format, sync contains JSON object
         assert "[DONE]" in r_stream.text
         assert r_sync.json()["object"] == "chat.completion"
 
 
 # ── Memory API ────────────────────────────────────────────────────────────────
+
 
 class TestMemoryAPI:
     def test_store_memory_returns_id(self, client_with_memory) -> None:
@@ -451,11 +511,14 @@ class TestMemoryAPI:
 
     def test_store_memory_with_metadata(self, client_with_memory) -> None:
         c, _, mock_ms = client_with_memory
-        r = c.post("/v1/memory", json={
-            "content": "Test",
-            "tags": ["a", "b"],
-            "metadata": {"source": "user"},
-        })
+        r = c.post(
+            "/v1/memory",
+            json={
+                "content": "Test",
+                "tags": ["a", "b"],
+                "metadata": {"source": "user"},
+            },
+        )
         assert r.status_code == 200
 
     def test_search_memory_returns_results(self, client_with_memory) -> None:
@@ -503,6 +566,7 @@ class TestMemoryAPI:
 
 
 # ── API Key Management ────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def key_mgmt_client(tmp_path):
@@ -666,6 +730,7 @@ class TestAPIKeyManagement:
 
 # ── Streaming Error Recovery ──────────────────────────────────────────────────
 
+
 class TestStreamingErrorRecovery:
     @staticmethod
     async def _failing_stream(request):
@@ -675,39 +740,55 @@ class TestStreamingErrorRecovery:
     def test_streaming_error_returns_error_json(self, client) -> None:
         c, mock_gw = client
         mock_gw.stream = self._failing_stream
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "stream": True,
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
         assert r.status_code == 200  # SSE stream starts 200 even on error
         assert "stream_error" in r.text or "provider_error" in r.text or "error" in r.text
 
     def test_streaming_error_does_not_return_500(self, client) -> None:
         c, mock_gw = client
         mock_gw.stream = self._failing_stream
-        r = c.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-            "stream": True,
-        })
+        r = c.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
         assert r.status_code != 500
 
 
 # ── Rate Limiting ─────────────────────────────────────────────────────────────
 
+
 class TestRateLimiting:
     def test_within_limit_succeeds(self, rate_limited_client) -> None:
-        r = rate_limited_client.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-        })
+        r = rate_limited_client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
         assert r.status_code == 200
 
     def test_exceeding_limit_returns_429(self, rate_limited_client) -> None:
         # Limit is 2/minute; 3rd request should be rate limited
         for _ in range(2):
-            rate_limited_client.post("/v1/chat/completions", json={
+            rate_limited_client.post(
+                "/v1/chat/completions",
+                json={
+                    "messages": [{"role": "user", "content": "test"}],
+                },
+            )
+        r = rate_limited_client.post(
+            "/v1/chat/completions",
+            json={
                 "messages": [{"role": "user", "content": "test"}],
-            })
-        r = rate_limited_client.post("/v1/chat/completions", json={
-            "messages": [{"role": "user", "content": "test"}],
-        })
+            },
+        )
         assert r.status_code == 429

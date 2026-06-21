@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from aicos.core.ai import AI
 from aicos.core.config import AICOSConfig
-from aicos.providers.base import ProviderResponse, StreamChunk
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def ai_config(tmp_path):
@@ -34,6 +32,7 @@ def ai_config(tmp_path):
 @pytest.fixture
 def mock_prov():
     from tests.conftest import MockProvider
+
     return MockProvider("AI says hello")
 
 
@@ -55,6 +54,7 @@ async def ai(ai_config, mock_prov):
 
 # ── Initialization ────────────────────────────────────────────────────────────
 
+
 class TestAIInitialization:
     @pytest.mark.asyncio
     async def test_lazy_init_only_once(self, ai) -> None:
@@ -75,6 +75,7 @@ class TestAIInitialization:
 
 
 # ── Chat ──────────────────────────────────────────────────────────────────────
+
 
 class TestAIChat:
     @pytest.mark.asyncio
@@ -139,6 +140,7 @@ class TestAIChat:
 
 # ── Memory ────────────────────────────────────────────────────────────────────
 
+
 class TestAIMemory:
     @pytest.mark.asyncio
     async def test_aremember_returns_id(self, ai) -> None:
@@ -183,6 +185,7 @@ class TestAIMemory:
 
 # ── History ───────────────────────────────────────────────────────────────────
 
+
 class TestAIHistory:
     @pytest.mark.asyncio
     async def test_history_empty_initially(self, ai) -> None:
@@ -209,6 +212,7 @@ class TestAIHistory:
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
 
+
 class TestAIInternals:
     @pytest.mark.asyncio
     async def test_llm_call_simple_returns_string(self, ai) -> None:
@@ -232,6 +236,7 @@ class TestAIInternals:
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
 
+
 class TestAIAnalytics:
     @pytest.mark.asyncio
     async def test_cost_summary(self, ai) -> None:
@@ -247,6 +252,7 @@ class TestAIAnalytics:
 
 
 # ── Provider building ─────────────────────────────────────────────────────────
+
 
 class TestBuildProviders:
     def test_build_providers_openrouter_key_present(self, ai_config) -> None:

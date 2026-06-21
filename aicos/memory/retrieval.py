@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from aicos.memory.memory_store import MemoryItem, MemoryStore
+from aicos.memory.memory_store import MemoryStore
 
 
 @dataclass
@@ -97,9 +97,7 @@ class MemoryRetriever:
         memory_text = self._format_memories(memories)
         augmented = list(messages)
 
-        system_idx = next(
-            (i for i, m in enumerate(augmented) if m.get("role") == "system"), None
-        )
+        system_idx = next((i for i, m in enumerate(augmented) if m.get("role") == "system"), None)
 
         if system_idx is not None:
             existing = str(augmented[system_idx].get("content", ""))
