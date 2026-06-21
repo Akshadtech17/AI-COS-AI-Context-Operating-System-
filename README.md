@@ -21,6 +21,93 @@ response = ai.chat("Build a SaaS startup")
 
 ---
 
+## Quick Start
+
+**You need one API key from any provider** — OpenRouter is the easiest (100+ models, free tier available).
+
+### Option 1 — pip install
+
+```bash
+pip install aicos
+```
+
+Create a `.env` file with at least one API key:
+
+```env
+# Pick any one (or more):
+OPENROUTER_API_KEY=sk-or-...      # 100+ models — openrouter.ai
+OPENAI_API_KEY=sk-...             # openai.com
+ANTHROPIC_API_KEY=sk-ant-...      # anthropic.com
+GEMINI_API_KEY=...                # aistudio.google.com
+```
+
+Start the gateway:
+
+```bash
+aicos start
+```
+
+Open **http://localhost:4000/dashboard** — live dashboard with metrics, cost, and provider status.
+
+### Option 2 — clone & run
+
+```bash
+git clone https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-
+cd AI-COS-AI-Context-Operating-System-
+pip install -e ".[dev]"
+cp .env.example .env   # fill in your API key(s)
+aicos start
+```
+
+### Option 3 — Docker (zero Python setup)
+
+```bash
+git clone https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-
+cd AI-COS-AI-Context-Operating-System-
+cp .env.example .env   # fill in your API key(s)
+docker compose up
+```
+
+### Send your first request
+
+```bash
+curl http://localhost:4000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "auto", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+Or use the Python SDK:
+
+```python
+from aicos import AI
+
+ai = AI()
+print(ai.chat("Hello!"))
+
+# Remember facts across conversations
+ai.remember("User is building a SaaS product in Python")
+print(ai.chat("What stack should I use?"))  # context is automatically injected
+
+# Session stats
+print(ai.cost_summary)   # {'total_cost_usd': 0.0001, 'total_tokens': 240}
+print(ai.metrics)        # {'cache_hit_rate': 0.33, 'avg_latency_ms': 280}
+```
+
+Or point any OpenAI-compatible client at it:
+
+```python
+import openai
+
+client = openai.OpenAI(base_url="http://localhost:4000/v1", api_key="none")
+response = client.chat.completions.create(
+    model="auto",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(response.choices[0].message.content)
+```
+
+---
+
 ## Features
 
 | Feature | Description |
