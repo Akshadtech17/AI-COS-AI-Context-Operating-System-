@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
 
 from aicos.cli.main import app
 
-runner = CliRunner(env={"NO_COLOR": "1"})
+runner = CliRunner()
+
+# Rich's module-level Console() is initialised at import time (before any env
+# var override can take effect), so the test runner output may contain ANSI
+# escape codes even when NO_COLOR is requested. Strip them before asserting.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mGKHFJA-Z]")
 
 
 def _make_mock_ai(
@@ -56,8 +62,9 @@ class TestCLIHelp:
     def test_start_help(self) -> None:
         result = runner.invoke(app, ["start", "--help"])
         assert result.exit_code == 0
-        assert "--port" in result.output
-        assert "--host" in result.output
+        plain = _ANSI_RE.sub("", result.output)
+        assert "--port" in plain
+        assert "--host" in plain
 
     def test_chat_help(self) -> None:
         result = runner.invoke(app, ["chat", "--help"])
