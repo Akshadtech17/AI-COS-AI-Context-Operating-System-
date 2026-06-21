@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 
 from aicos.cli.main import app
 
-runner = CliRunner()
+runner = CliRunner(env={"NO_COLOR": "1"})
 
 
 def _make_mock_ai(
