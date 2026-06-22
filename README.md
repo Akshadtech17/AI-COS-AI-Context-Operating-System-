@@ -1,927 +1,274 @@
-# AI-COS — AI Context Operating System
-
-> **The production-grade middleware layer between your application and any LLM.**
-
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-449%20passing-brightgreen.svg)](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/actions)
-[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen.svg)](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/actions)
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-/blob/master/CHANGELOG.md)
-
-AI-COS is a self-hosted AI infrastructure layer that sits between your applications and LLM providers. It handles model routing, semantic caching, long-term memory, context compression, cost tracking, and production observability — so your application code stays clean.
-
-```python
-from aicos import AI
-
-ai = AI()
-response = ai.chat("Build a SaaS startup")
-# Routing, caching, memory, compression, cost tracking — all automatic.
-```
+# AI-COS: AI Context Operating System — A Production-Grade Middleware Layer for Large Language Model Applications
 
 ---
 
-## Quick Start
+## Abstract
 
-**You need one API key from any provider** — OpenRouter is the easiest (100+ models, free tier available).
-
-### Option 1 — pip install
-
-```bash
-pip install aicos
-```
-
-Create a `.env` file with at least one API key:
-
-```env
-# Pick any one (or more):
-OPENROUTER_API_KEY=sk-or-...      # 100+ models — openrouter.ai
-OPENAI_API_KEY=sk-...             # openai.com
-ANTHROPIC_API_KEY=sk-ant-...      # anthropic.com
-GEMINI_API_KEY=...                # aistudio.google.com
-```
-
-Start the gateway:
-
-```bash
-aicos start
-```
-
-Open **http://localhost:4000/dashboard** — live dashboard with metrics, cost, and provider status.
-
-### Option 2 — clone & run
-
-```bash
-git clone https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-
-cd AI-COS-AI-Context-Operating-System-
-pip install -e ".[dev]"
-cp .env.example .env   # fill in your API key(s)
-aicos start
-```
-
-### Option 3 — Docker (zero Python setup)
-
-```bash
-git clone https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-
-cd AI-COS-AI-Context-Operating-System-
-cp .env.example .env   # fill in your API key(s)
-docker compose up
-```
-
-### Send your first request
-
-```bash
-curl http://localhost:4000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model": "auto", "messages": [{"role": "user", "content": "Hello!"}]}'
-```
-
-Or use the Python SDK:
-
-```python
-from aicos import AI
-
-ai = AI()
-print(ai.chat("Hello!"))
-
-# Remember facts across conversations
-ai.remember("User is building a SaaS product in Python")
-print(ai.chat("What stack should I use?"))  # context is automatically injected
-
-# Session stats
-print(ai.cost_summary)   # {'total_cost_usd': 0.0001, 'total_tokens': 240}
-print(ai.metrics)        # {'cache_hit_rate': 0.33, 'avg_latency_ms': 280}
-```
-
-Or point any OpenAI-compatible client at it:
-
-```python
-import openai
-
-client = openai.OpenAI(base_url="http://localhost:4000/v1", api_key="none")
-response = client.chat.completions.create(
-    model="auto",
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(response.choices[0].message.content)
-```
+AI-COS (AI Context Operating System) is an open-source, self-hosted middleware framework that sits between application code and large language model (LLM) providers. The system addresses the infrastructure concerns that arise when deploying LLM-powered applications at production scale: model selection, response caching, long-term conversational memory, token-budget management, cost tracking, and fault tolerance. AI-COS implements a multi-stage request pipeline that includes an embedding-based task classifier for intelligent model routing, a two-phase semantic cache using cosine similarity, a composite-scored memory retrieval engine, a TF-IDF context compressor, and a Lost-in-the-Middle (LITM) solver for conversation window management. The system exposes an OpenAI-compatible HTTP gateway (FastAPI + Uvicorn) and a Python SDK, supports six provider families (OpenAI, Anthropic, Google Gemini, NVIDIA, OpenRouter, Ollama), and ships with a production Docker Compose stack including nginx, PgBouncer, PostgreSQL with pgvector, Redis, Prometheus, and Grafana. At version 0.5.0 the test suite comprises 449 tests at 90% code coverage.
 
 ---
 
-## Features
+## I. Introduction
 
-| Feature | Description |
-|---|---|
-| **Smart Model Router** | Embedding-based task classifier routes to the optimal model per request type (code, vision, reasoning, analysis, agent). Four strategies: `auto`, `cheapest`, `fastest`, `best`. |
-| **Semantic Cache** | Cosine similarity cache — near-identical queries served in < 20 ms. SQLite (dev) or PostgreSQL + pgvector (prod) backend. |
-| **Long-Term Memory** | `remember()` / `forget()` / `search_memory()` with composite relevance scoring. pgvector ANN index in production for sub-millisecond retrieval at any scale. |
-| **Context Compression** | 40–80% token reduction preserving code blocks, JSON, and key facts via TF-IDF extractive summarisation. |
-| **LITM Solver** | Lost-in-the-Middle fix: compresses conversation middle, keeps first + last turns, generates a recap. |
-| **OpenAI-Compatible Gateway** | Drop-in `/v1/chat/completions` with SSE streaming, provider failover, and structured error events. |
-| **Per-User API Keys** | SHA-256-hashed keys with scopes. Create, list, revoke via HTTP API. Master key required for management. |
-| **Circuit Breaker** | Per-provider CLOSED → OPEN → HALF_OPEN state machine. Status visible in `/health`. |
-| **Distributed Rate Limiting** | Redis sliding-window rate limiter shared across all workers. In-process fallback when Redis is absent. |
-| **Persistent Cost Tracking** | Per-request cost, token, and latency records. Survives restarts. Prometheus metrics + JSON stats. |
-| **Structured Logging** | JSON logs in production, colour text in dev. Every request stamped with `X-Request-ID` for correlation. |
-| **Schema Migrations** | Versioned migration runner with PostgreSQL advisory lock — safe with multi-worker concurrent startup. |
-| **TLS via nginx** | HTTP → HTTPS redirect, TLS 1.2/1.3, HSTS, SSE buffering disabled. Drop-in for Let's Encrypt. |
-| **Docker Secrets** | API keys loaded from `/run/secrets/` (Docker Swarm / Compose secrets). Env vars always take precedence. |
-| **PgBouncer Connection Pool** | Transaction-mode pooling reduces PostgreSQL connections from 160 to ~20 under a 4-worker deployment. |
-| **pgvector ANN Search** | Native cosine-distance search via IVFFlat index. Scales memory and cache search to millions of entries. |
-| **Kubernetes Probes** | `GET /ready` (fast, 503 during startup) and `GET /live` (always 200) — correct separation of concerns. |
-| **Observability Stack** | Prometheus + Grafana pre-configured. Optional OpenTelemetry (OTLP gRPC) and Sentry integrations. |
-| **Multi-Provider** | OpenAI, Anthropic, Gemini, NVIDIA Nemotron, OpenRouter (100+ models), Ollama. |
-| **Agent Framework** | Tool-calling agents with `StartupAgent` (market research, pricing, branding) and `CodingAgent` (code gen, review, architecture). |
-| **Web Dashboard** | Live dark-mode UI at `http://localhost:4000` — provider status, cache hit rate, cost, latency, task breakdown. |
+The widespread adoption of LLM APIs has introduced a class of cross-cutting infrastructure concerns that are orthogonal to application business logic but critical to production viability. Applications that call LLM providers directly face several practical challenges:
+
+**Cost and latency unpredictability.** Every LLM call incurs variable token costs. Repeated or semantically near-identical queries sent separately each incur full cost and full round-trip latency (typically 500 ms–5 s), even when a cached response would be adequate.
+
+**Context window limitations.** Models operate within fixed token budgets. Long multi-turn conversations overflow context windows, and naive truncation of earlier turns causes the model to lose critical context. The "Lost-in-the-Middle" phenomenon [6] further degrades recall for information placed in the middle of a long context.
+
+**Provider lock-in and fragility.** Hardcoding a single provider couples application code to one vendor's availability, pricing, and capability profile. Provider outages or model deprecations require emergency code changes.
+
+**Memory discontinuity.** Standard LLM APIs are stateless. Persistent facts — user preferences, project context, prior decisions — must be re-supplied in every prompt by application code, duplicating logic and consuming tokens.
+
+**Operational invisibility.** Without dedicated instrumentation, token consumption, cost accumulation, latency distributions, and cache effectiveness are invisible to operators.
+
+AI-COS resolves all five concerns as a single cohesive middleware layer. Application code issues a `chat()` call or an HTTP request; the system transparently handles routing, caching, memory injection, context optimization, cost recording, and failover before returning a response. The design goal is zero application-layer changes when adding or switching providers, strategies, or backends.
 
 ---
 
-## Architecture
+## II. Methodology
+
+### A. Overall Architecture
+
+The system is organized as a layered pipeline. Every inbound request passes through a fixed sequence of processing stages before reaching an LLM provider, and a complementary sequence of post-processing stages on the response path.
 
 ```
-Your Application
-       │
-       ▼
-┌────────────────────────────────────────────────────────────────┐
-│                     nginx (TLS termination)                     │
-│                HTTP → HTTPS, TLS 1.2/1.3, HSTS                │
-└───────────────────────────┬────────────────────────────────────┘
-                            │
-              ┌─────────────┴─────────────┐
-              │   AI-COS Gateway (×4)      │   ← uvicorn workers
-              │                           │
-              │  RequestIDMiddleware       │   X-Request-ID tracing
-              │  RateLimitMiddleware       │   Redis sliding window
-              │                           │
-              │  Memory Injection          │   top-K relevant memories
-              │  Context Compression       │   40–80% token reduction
-              │  LITM Solver              │   lost-in-the-middle fix
-              │  Semantic Cache Lookup     │   cosine similarity < 20 ms
-              │                           │
-              │  Model Router              │   task → model → provider
-              │  Circuit Breaker           │   per-provider fault isolation
-              │                           │
-              │  LLM Call + Failover       │
-              │  Cost Tracking             │
-              │  Cache Store               │
-              └──┬──────────────────────┬─┘
-                 │                      │
-    ┌────────────┼──────────────┐       │
-    ▼            ▼              ▼       ▼
-┌────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐
-│OpenAI  │ │Anthropic │ │Gemini  │ │ NVIDIA / │
-│        │ │          │ │        │ │OpenRouter│
-└────────┘ └──────────┘ └────────┘ └──────────┘
-
-         ┌─────────────────────────────────┐
-         │        Data Layer               │
-         │                                 │
-         │  PgBouncer ← aicos workers      │
-         │      └── PostgreSQL+pgvector    │  memories, cache, cost, keys
-         │  Redis                          │  distributed rate limiting
-         │                                 │
-         │  Prometheus ← /metrics          │
-         │  Grafana    ← Prometheus        │
-         └─────────────────────────────────┘
-```
-
-### Request Pipeline
-
-Every request flows in order:
-
-```
-Request
-  → Memory Injection      (top-K memories from pgvector ANN index)
-  → Context Compression   (TF-IDF extractive, LITM solver)
-  → Semantic Cache Lookup (cosine similarity; cache hit → return in < 20 ms)
-  → Model Router          (task classification → optimal model)
-  → Circuit Breaker check (skip OPEN providers)
-  → LLM Call + Failover   (retry across fallback chain)
-  → Cache Store           (async, never blocks response)
+Inbound Request
+  → Memory Injection      (top-K relevant long-term memories)
+  → Context Compression   (TF-IDF extractive reduction)
+  → LITM Solver           (conversation window management)
+  → Semantic Cache Lookup (cosine similarity; hit → return immediately)
+  → Model Router          (task classification → optimal model selection)
+  → Circuit Breaker check (skip OPEN/failed providers)
+  → LLM Call + Failover   (retry across provider fallback chain)
+  → Cache Store           (async, non-blocking)
   → Cost Record           (async, fire-and-forget)
-  → Response
+  → Outbound Response
 ```
 
----
+All stages are asynchronous (Python `asyncio`). Cost recording and cache storage are fire-and-forget tasks that never add to response latency.
 
-## Quick Start
+### B. Semantic Caching
 
-### Docker (recommended)
+The cache operates in two phases. Phase 1 is an exact-match lookup keyed by a SHA-256 hash of the prompt and model identifier, implemented as an indexed database read (target: < 5 ms). Phase 2, triggered only on exact-miss, computes cosine similarity between the incoming prompt's embedding and the embeddings of recent cache entries (target: < 20 ms, vectorized NumPy). A configurable similarity threshold (default 0.96) determines whether a semantic match is accepted. Cache entries carry per-entry TTL (default 86 400 s). In production, pgvector's IVFFlat approximate nearest-neighbor index replaces the NumPy scan for sub-millisecond retrieval at millions of entries.
 
-```bash
-cp .env.example .env   # add at least one provider API key
-docker compose up
-```
+### C. Long-Term Memory and Composite Scoring
 
-- Dashboard: **http://localhost:4000**
-- API: **http://localhost:4000/v1/chat/completions**
-
-### pip
-
-```bash
-pip install "aicos[all]"
-cp .env.example .env
-aicos start
-```
-
----
-
-## Configuration
-
-All settings are environment variables. Copy `.env.example` to `.env` and fill in your keys.
-
-### Provider Keys
-
-```env
-# At least one required — use any combination
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GEMINI_API_KEY=...
-OPENROUTER_API_KEY=sk-or-...     # access 100+ models including free NVIDIA Nemotron
-NVIDIA_API_KEY=nvapi-...         # direct NVIDIA API
-```
-
-### Core Settings
-
-```env
-# Router
-AICOS_ROUTER_STRATEGY=auto        # auto | cheapest | fastest | best
-AICOS_DEFAULT_MODEL=              # override auto-routing (e.g. gpt-4o)
-
-# Cache
-AICOS_CACHE_ENABLED=true
-AICOS_CACHE_SIMILARITY_THRESHOLD=0.96   # 0.0–1.0, higher = stricter match
-AICOS_CACHE_MAX_SIZE=10000
-AICOS_CACHE_TTL_SECONDS=86400
-
-# Memory
-AICOS_MEMORY_ENABLED=true
-AICOS_MEMORY_MAX_ITEMS=10000
-AICOS_MEMORY_INJECTION_LIMIT=5         # memories injected per request
-AICOS_MEMORY_RELEVANCE_THRESHOLD=0.3
-
-# Context
-AICOS_CONTEXT_COMPRESSION_ENABLED=true
-AICOS_MAX_CONTEXT_TOKENS=8000
-AICOS_LITM_THRESHOLD_TOKENS=6000
-
-# Gateway
-AICOS_GATEWAY_HOST=0.0.0.0
-AICOS_GATEWAY_PORT=4000
-AICOS_GATEWAY_API_KEY=                 # optional — leave unset for open access
-
-# Logging
-AICOS_LOG_LEVEL=INFO                   # DEBUG | INFO | WARNING | ERROR
-AICOS_LOG_JSON=false                   # set true for structured JSON logs in prod
-
-# Rate limiting
-AICOS_RATE_LIMIT_ENABLED=true
-AICOS_RATE_LIMIT_RPM=60
-
-# Circuit breaker
-AICOS_CIRCUIT_BREAKER_FAILURE_THRESHOLD=5    # consecutive failures to open
-AICOS_CIRCUIT_BREAKER_RECOVERY_TIMEOUT=30.0  # seconds before HALF_OPEN probe
-```
-
-### Database
-
-```env
-# Default: SQLite (WAL mode, separate file per component)
-# Production: PostgreSQL + pgvector
-DATABASE_URL=postgresql+asyncpg://user:password@host:5432/aicos
-
-# Connection pool (reduce when behind PgBouncer in transaction mode)
-AICOS_DB_POOL_SIZE=5        # per-worker, per-store (default: 5)
-AICOS_DB_MAX_OVERFLOW=5     # (default: 5; use 2/3 with PgBouncer)
-
-# Embedding dimension — must match the embedding model
-AICOS_EMBEDDING_DIM=384     # 384 for all-MiniLM-L6-v2, 512 for hash fallback
-```
-
-### Redis, Secrets & Observability
-
-```env
-# Redis — enables distributed rate limiting across workers
-AICOS_REDIS_URL=redis://localhost:6379/0
-
-# Docker secrets directory (one file per secret, named like env var)
-AICOS_SECRETS_DIR=/run/secrets
-
-# OpenTelemetry tracing (requires pip install 'aicos[otel]')
-AICOS_OTEL_ENDPOINT=http://jaeger:4317
-
-# Sentry error tracking (requires pip install 'aicos[sentry]')
-AICOS_SENTRY_DSN=https://...@sentry.io/...
-```
-
----
-
-## Python SDK
-
-```python
-from aicos import AI
-
-ai = AI()
-
-# ── Chat ──────────────────────────────────────────────────────────────────────
-response = ai.chat("What is the capital of France?")
-print(response)  # "The capital of France is Paris."
-
-# With system prompt
-response = ai.chat(
-    "What tech stack should I use?",
-    system="You are a senior software architect.",
-)
-
-# Streaming
-async for token in ai.astream("Write a haiku about distributed systems"):
-    print(token, end="", flush=True)
-
-# ── Memory ────────────────────────────────────────────────────────────────────
-# Store memories (automatically injected into future chats)
-ai.remember("User is building a B2B SaaS product", tags=["context", "project"])
-ai.remember("User prefers Python over JavaScript", tags=["preferences"])
-ai.remember("Team is 3 engineers, shipping in Q3", tags=["context"])
-
-# Memories are automatically retrieved and injected into relevant future requests
-response = ai.chat("What database should we use?")  # sees the project context
-
-# Search memories
-results = ai.search_memory("Python preferences", top_k=3)
-for r in results:
-    print(f"[{r['score']:.3f}] {r['content']}")
-
-# Forget by ID
-ai.forget(42)
-
-# ── Model selection ───────────────────────────────────────────────────────────
-# Override auto-routing
-response = ai.chat("Review this code", model="claude-sonnet-4-6")
-
-# ── Session stats ─────────────────────────────────────────────────────────────
-print(ai.cost_summary)   # {'total_cost_usd': 0.0012, 'total_tokens': 840, ...}
-print(ai.metrics)        # {'cache_hit_rate': 0.34, 'avg_latency_ms': 312, ...}
-
-# ── Async usage ───────────────────────────────────────────────────────────────
-import asyncio
-
-async def main():
-    ai = AI()
-    response = await ai.achat("Hello, world!")
-    memory_id = await ai.aremember("User said hello", tags=["session"])
-    results = await ai.asearch_memory("greeting")
-
-asyncio.run(main())
-```
-
----
-
-## OpenAI Drop-In
-
-Point any OpenAI-compatible client at `http://localhost:4000`:
-
-```python
-import openai
-
-client = openai.OpenAI(
-    base_url="http://localhost:4000/v1",
-    api_key="your-aicos-key",  # or omit if no key configured
-)
-
-response = client.chat.completions.create(
-    model="auto",   # AI-COS selects the optimal model automatically
-    messages=[{"role": "user", "content": "Explain async/await in Python"}],
-)
-print(response.choices[0].message.content)
-
-# Streaming
-stream = client.chat.completions.create(
-    model="claude-sonnet-4-6",
-    messages=[{"role": "user", "content": "Write a sorting algorithm"}],
-    stream=True,
-)
-for chunk in stream:
-    print(chunk.choices[0].delta.content or "", end="")
-```
-
-```bash
-# curl
-curl http://localhost:4000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-aicos-key" \
-  -d '{
-    "model": "auto",
-    "messages": [{"role": "user", "content": "Hello"}],
-    "stream": false
-  }'
-```
-
-Response includes AI-COS metadata:
-```json
-{
-  "choices": [...],
-  "aicos": {
-    "cache_hit": false,
-    "task_type": "simple",
-    "tokens_before_compression": 12,
-    "tokens_after_compression": 12,
-    "compression_savings_pct": 0.0,
-    "memories_injected": 2,
-    "cost_usd": 0.0000015,
-    "latency_ms": 312.4,
-    "routing": "Strategy=auto, task=simple, tier=free, cost=$0.00/1M"
-  }
-}
-```
-
----
-
-## HTTP API Reference
-
-### Chat
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/v1/chat/completions` | OpenAI-compatible chat (streaming + non-streaming) |
-| `GET` | `/v1/models` | List available models and providers |
-
-### Memory
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/v1/memory` | Store a memory |
-| `GET` | `/v1/memory/search?query=...&top_k=5` | Semantic memory search |
-| `DELETE` | `/v1/memory/{id}` | Delete a memory by ID |
-
-### API Key Management (master key required)
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/v1/keys` | Create a new per-user API key (shown once, plaintext never stored) |
-| `GET` | `/v1/keys` | List all active keys (prefix + scopes + last-used timestamp) |
-| `DELETE` | `/v1/keys/{id}` | Revoke a key immediately |
-
-```bash
-# Create a key
-curl -X POST http://localhost:4000/v1/keys \
-  -H "Authorization: Bearer $MASTER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "production-app", "scopes": ["chat", "memory"]}'
-
-# {"key": "aicos-abc123-...", "id": 1, "name": "production-app", ...}
-# Save the key — it is shown exactly once.
-```
-
-### Observability
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/metrics` | Prometheus metrics |
-| `GET` | `/stats` | JSON stats overview |
-| `GET` | `/health` | Deep health check — probes each provider (~5 s) |
-| `GET` | `/ready` | Kubernetes readiness probe — fast, 503 during startup |
-| `GET` | `/live` | Kubernetes liveness probe — always 200 if process is running |
-
----
-
-## Model Router
-
-The router classifies each request's task type using an embedding-based classifier with regex fallback, then selects the optimal model based on strategy.
-
-### Supported Models
-
-| Provider | Model | Tier | Cost (in/out per 1M) | Context |
-|---|---|---|---|---|
-| **OpenAI** | gpt-4o-mini | cheap | $0.15 / $0.60 | 128k |
-| **OpenAI** | gpt-4o | premium | $2.50 / $10.00 | 128k |
-| **OpenAI** | o1-mini | mid | $3.00 / $12.00 | 128k |
-| **Anthropic** | claude-haiku-4-5 | cheap | $0.25 / $1.25 | 200k |
-| **Anthropic** | claude-sonnet-4-6 | mid | $3.00 / $15.00 | 200k |
-| **Anthropic** | claude-opus-4-8 | premium | $15.00 / $75.00 | 200k |
-| **Google** | gemini-2.0-flash | cheap | $0.10 / $0.40 | 1M |
-| **Google** | gemini-1.5-pro | mid | $1.25 / $5.00 | 2M |
-| **NVIDIA** | llama-3.1-nemotron-ultra-253b | **free** | $0 / $0 | 128k |
-| **OpenRouter** | (via NVIDIA) | **free** | $0 / $0 | 128k |
-| **Ollama** | llama3.2, codellama | **local** | $0 / $0 | 128k |
-
-NVIDIA Nemotron Ultra is preferred by default — it's free, capable, and handles all task types.
-
-### Task Classification
-
-| Task Type | Detection Signals | Default Model Tier |
-|---|---|---|
-| `simple` | Short prompt, conversational | free → cheap |
-| `coding` | `def`, `class`, code blocks, `import` | free → mid |
-| `vision` | "image", "photo", "describe", "screenshot" | free → mid |
-| `reasoning` | "analyze", "compare", "trade-off", "prove" | free → premium |
-| `creative` | "write", "story", "poem", "creative" | free → mid |
-| `analysis` | "market research", "financial", "strategy" | free → premium |
-| `agent` | "orchestrate", "automate", "workflow", "plan" | free → premium |
-
-### Router Strategies
-
-```python
-from aicos.core.config import AICOSConfig
-from aicos import AI
-
-# Cheapest model that can handle the task
-ai = AI(config=AICOSConfig(router_strategy="cheapest"))
-
-# Lowest average latency
-ai = AI(config=AICOSConfig(router_strategy="fastest"))
-
-# Highest-tier model regardless of cost
-ai = AI(config=AICOSConfig(router_strategy="best"))
-
-# Task-adaptive (default) — free/cheap for simple, premium for complex
-ai = AI(config=AICOSConfig(router_strategy="auto"))
-```
-
----
-
-## Memory System
-
-Memories are scored with a composite formula that balances semantic relevance, recency, and frequency:
+Memories are stored as text with associated embedding vectors, tags, and metadata. Retrieval uses a composite relevance score:
 
 ```
 score = cosine_similarity × 0.60
-      + recency_decay      × 0.25     (exp(-age_days / 30))
-      + access_frequency   × 0.15     (log(1 + count) / log(1 + max_count))
+      + recency_decay      × 0.25   (exp(−age_days / 30))
+      + access_frequency   × 0.15   (log(1 + count) / log(1 + max_count))
 ```
 
-### Storage Backends
+The formula balances semantic relevance (60%) with temporal freshness (25%) and reinforced-access frequency (15%). Retrieved memories are injected as a formatted block immediately before the final user message in the conversation history.
 
-| Backend | When used | Search |
-|---|---|---|
-| SQLite + JSON | Dev / single-server | NumPy cosine scan (< 10k rows) |
-| PostgreSQL + pgvector | Production | IVFFlat ANN index — sub-ms at any scale |
+### D. Task-Adaptive Model Routing
 
-pgvector is enabled automatically when migration `002_add_pgvector` detects the PostgreSQL vector extension. Old rows remain searchable via the JSON path; new rows populate both columns.
+The router classifies each request into one of seven task types: `simple`, `coding`, `vision`, `reasoning`, `creative`, `analysis`, or `agent`. Classification uses an embedding-based zero-shot classifier with prototype centroids. A regex-based fallback handles unambiguous signals (code syntax markers, vision keywords, agent orchestration vocabulary). The selected task type is combined with a routing strategy (`auto`, `cheapest`, `fastest`, `best`) and a fallback priority chain to choose a specific model from the model registry. The `auto` strategy routes low-complexity requests to free or cheap tiers and escalates complex tasks (reasoning, analysis, agent) to premium tiers.
 
-```python
-# Store with tags and metadata
-ai.remember(
-    "The payment service uses Stripe with SCA enabled",
-    tags=["architecture", "payments"],
-    metadata={"source": "design-doc", "version": 2},
-)
+### E. Context Compression and LITM Solver
 
-# Semantic search
-results = ai.search_memory("payment processing", top_k=5, threshold=0.3)
+The compressor applies extractive summarization to natural-language message content only. Code blocks, JSON objects, and XML are detected by pattern matching and preserved verbatim. Natural language is scored by TF-IDF sentence importance with positional bonuses for first and last sentences, yielding 40–80% token reduction in practice.
 
-# Forget by ID
-ai.forget(memory_id)
-```
+The LITM solver triggers when a conversation exceeds `AICOS_LITM_THRESHOLD_TOKENS` (default 6 000 tokens). It discards the middle turns, retains the most recent turns, and inserts an LLM-generated abstractive summary (recap) of the discarded segment between the system message and the retained turns.
+
+### F. Fault Isolation and Rate Limiting
+
+Each provider has an independent circuit breaker implementing the standard CLOSED → OPEN → HALF_OPEN state machine [12]. Consecutive failures beyond a threshold open the circuit; after a recovery timeout the breaker enters HALF_OPEN and allows one probe request. The gateway's failover mechanism skips OPEN providers and retries through the fallback chain.
+
+Rate limiting uses a Redis sorted-set sliding-window algorithm shared across all workers. When Redis is unavailable the system falls back to an in-process list-of-timestamps implementation, maintaining correctness for single-worker deployments.
 
 ---
 
-## Context Optimization
+## III. Literature Survey
 
-### Compression
+### A. LLM Proxy and Routing Frameworks
 
-Applied to natural language only — code and structured data are never modified:
+LiteLLM [2] provides a unified Python interface and proxy server for calling 100+ LLM APIs in OpenAI format. AI-COS depends on LiteLLM as a lower-level dependency and extends it with application-level concerns (memory, semantic cache, LITM solver, cost analytics) not addressed by LiteLLM itself. LocalAI and Ollama [10] serve local open-weight models; AI-COS integrates with Ollama-compatible endpoints as a zero-cost provider tier.
 
-| Content Type | Treatment |
+### B. Semantic Caching for LLMs
+
+GPTCache [3] demonstrated semantic caching for LLM responses using embedding similarity, reporting significant latency and cost reductions for repeated or near-duplicate queries. AI-COS implements the same two-phase architecture (exact hash → cosine scan) and extends it with per-entry TTL, pgvector ANN indexing, and integration into a broader request pipeline.
+
+### C. Retrieval-Augmented Generation
+
+Lewis et al. [4] introduced Retrieval-Augmented Generation (RAG), combining a dense retrieval index with a generative model to inject relevant documents into prompts. AI-COS applies the same principle to conversational long-term memory: stored facts are retrieved by semantic similarity and injected into the prompt context, enabling persistent user- and project-level awareness across sessions.
+
+### D. Sentence Embeddings
+
+Reimers and Gurevych [5] introduced Sentence-BERT (SBERT), producing semantically meaningful fixed-size sentence embeddings via siamese BERT networks. AI-COS uses the `sentence-transformers` library (SBERT-derived models) when available for high-quality embeddings, and falls back to a deterministic character n-gram hash embedding (512-dimensional) when no model is installed, preserving functionality without requiring a GPU or large model download.
+
+### E. Lost-in-the-Middle Problem
+
+Liu et al. [6] demonstrated empirically that transformer-based language models exhibit significantly degraded recall for information placed in the middle of long contexts, even when that information is within the model's nominal context window. AI-COS's LITM solver directly addresses this finding by restructuring long conversations so that critical context appears at the beginning (as a recap) and end (as recent turns), minimizing the middle region.
+
+### F. Vector Databases and Approximate Nearest-Neighbor Search
+
+pgvector [7] extends PostgreSQL with a native vector type and IVFFlat and HNSW approximate nearest-neighbor indexes. AI-COS uses pgvector for both cache and memory search in production deployments, avoiding the operational overhead of a separate vector database while achieving sub-millisecond retrieval at scale.
+
+### G. OpenAI Compatibility Standard
+
+The OpenAI Chat Completions API [1] has emerged as a de-facto standard interface for LLM access. AI-COS exposes a `/v1/chat/completions` endpoint that is wire-compatible with the OpenAI API, allowing any existing OpenAI client library to target the AI-COS gateway without code changes.
+
+---
+
+## IV. Implementation
+
+### A. Technology Stack
+
+| Layer | Technology |
 |---|---|
-| System messages | **Never modified** |
-| Code blocks (` ``` `) | **Preserved verbatim** |
-| JSON objects | **Preserved verbatim** |
-| XML / HTML | **Preserved verbatim** |
-| Natural language | **Compressed aggressively** — 40–80% reduction |
-
-Algorithm: TF-IDF sentence scoring + positional bonuses (first/last sentences preserved).
-
-### LITM Solver
-
-When conversation exceeds `AICOS_LITM_THRESHOLD_TOKENS` (default: 6000):
-
-```
-Before: [System] [Turn 1] [Turn 2] [Turn 3] [Turn 4] [Turn 5] [Turn 6]
-                          ← "lost in the middle" — model ignores these →
-
-After:  [System] [Context Recap] [Turn 5] [Turn 6]
-                       ↑
-              LLM-generated summary of Turns 1-4
-```
-
----
-
-## Agent Framework
-
-### StartupAgent
-
-Full startup analysis with structured JSON output:
-
-```python
-from aicos import AI
-from aicos.agents import StartupAgent
-
-ai = AI()
-await ai._ensure_initialized()
-
-agent = StartupAgent(gateway=ai._gateway)
-result = await agent.run("Build an AI-powered legal document analyzer for SMBs")
-
-print(result.structured)
-# {
-#   "startup_name": "LegalLens AI",
-#   "tagline": "Contract intelligence for growing businesses",
-#   "market": {"tam_usd": 12_000_000_000, "yoy_growth_pct": 23, ...},
-#   "competitors": [{"name": "ContractPodAi", "weakness": "enterprise-only"}, ...],
-#   "pricing": {"tiers": [{"name": "Starter", "price_usd_monthly": 49}, ...]},
-#   "branding": {"primary_color": "#1a1a2e", "tone": "professional"},
-#   "financials": {"break_even_months": 14, "mrr_12m": 85_000}
-# }
-```
-
-### CodingAgent
-
-Software engineering agent with code generation, review, testing, and architecture tools:
-
-```python
-from aicos.agents import CodingAgent
-
-agent = CodingAgent(gateway=ai._gateway)
-result = await agent.run_code_task(
-    "Build a rate limiter class with sliding window algorithm",
-    language="python",
-)
-print(result.structured["code"])
-print(result.structured["tests"])
-print(result.structured["review"])
-```
-
----
-
-## CLI
-
-```bash
-# Start the gateway
-aicos start
-aicos start --port 4000 --host 0.0.0.0
-
-# Interactive chat (conversation history maintained)
-aicos chat
-aicos chat "What is machine learning?" --model gpt-4o
-
-# Memory management
-aicos remember "I prefer type hints in Python" --tags "coding"
-aicos search "Python preferences" --top-k 5
-aicos forget 42
-
-# Statistics
-aicos stats
-
-# Show resolved config
-aicos config
-```
-
----
-
-## Production Deployment
-
-### Single-server (SQLite, 1 worker)
-
-```bash
-cp .env.example .env
-docker compose up -d
-```
-
-Suitable for: internal tools, side projects, single-team usage.
-
-### Multi-worker (PostgreSQL + PgBouncer + Redis)
-
-```bash
-cp .env.example .env
-# Set POSTGRES_PASSWORD, GRAFANA_PASSWORD, and all API keys in .env
-docker compose -f docker-compose.prod.yml up -d
-```
-
-This starts:
-- **nginx** — TLS termination on 80/443
-- **4 AI-COS workers** — behind nginx
-- **PgBouncer** — connection pooler in transaction mode
-- **PostgreSQL 16 + pgvector** — shared persistence for all components
-- **Redis 7** — distributed rate limiting
-- **Prometheus** — metrics scraping at `:9090`
-- **Grafana** — dashboards at `:3000` (auto-provisioned with Prometheus datasource)
-
-### TLS / Let's Encrypt
-
-Edit `nginx/nginx.conf` to add your domain and certificate paths:
-
-```nginx
-ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-```
-
-Then uncomment the cert volume mount in `docker-compose.prod.yml`.
-
-### Kubernetes
-
-Use `/ready` as `readinessProbe` and `/live` as `livenessProbe`:
-
-```yaml
-readinessProbe:
-  httpGet:
-    path: /ready
-    port: 4000
-  initialDelaySeconds: 10
-  periodSeconds: 5
-  failureThreshold: 3
-
-livenessProbe:
-  httpGet:
-    path: /live
-    port: 4000
-  initialDelaySeconds: 5
-  periodSeconds: 10
-```
-
-### Docker Secrets
-
-Mount secrets as files instead of env vars (Swarm / Compose secrets):
-
-```yaml
-secrets:
-  OPENAI_API_KEY:
-    file: ./secrets/openai_key.txt
-  AICOS_GATEWAY_API_KEY:
-    file: ./secrets/gateway_key.txt
-```
-
-AI-COS reads them from `/run/secrets/` automatically. Env vars always take precedence over secret files.
-
-### Connection Pool Tuning (PgBouncer)
-
-With PgBouncer in transaction mode, reduce pool sizes to avoid PostgreSQL connection exhaustion:
-
-```env
-AICOS_DB_POOL_SIZE=2
-AICOS_DB_MAX_OVERFLOW=3
-```
-
-This gives: 4 workers × 4 stores × 5 connections = 80 app→PgBouncer connections → ~20 real PostgreSQL connections.
-
-### Observability
-
-```env
-# OpenTelemetry traces to Jaeger / Grafana Tempo
-AICOS_OTEL_ENDPOINT=http://jaeger:4317
-# pip install 'aicos[otel]'
-
-# Sentry error tracking
-AICOS_SENTRY_DSN=https://...@sentry.io/...
-# pip install 'aicos[sentry]'
-```
-
----
-
-## Installation
-
-```bash
-# Core only
-pip install aicos
-
-# With PostgreSQL support
-pip install "aicos[postgres]"
-
-# With pgvector (PostgreSQL vector search)
-pip install "aicos[postgres,pgvector]"
-
-# With Redis
-pip install "aicos[redis]"
-
-# With sentence-transformers (better embeddings, needed for pgvector dim=384)
-pip install "aicos[embeddings]"
-
-# With OpenTelemetry
-pip install "aicos[otel]"
-
-# With Sentry
-pip install "aicos[sentry]"
-
-# Everything
-pip install "aicos[all]"
-```
-
----
-
-## Performance
-
-| Operation | Target | Notes |
+| Language | Python 3.11+ |
+| HTTP Framework | FastAPI 0.115+, Uvicorn 0.32+ |
+| Async I/O | Python `asyncio`, `aiohttp`, `aiosqlite` |
+| ORM / Database | SQLAlchemy 2.0 (async), aiosqlite (dev), asyncpg (prod) |
+| Vector Search | pgvector 0.3+ (PostgreSQL extension) |
+| Embeddings | sentence-transformers 3.3+ (optional), hash fallback (built-in) |
+| Numerics | NumPy 1.26+, tiktoken 0.8+ |
+| LLM Providers | openai 1.55+, anthropic 0.40+, google-generativeai 0.8+, litellm 1.51+ |
+| CLI | Typer 0.13+, Rich 13.9+ |
+| Config | pydantic-settings 2.6+ |
+| Caching | aiosqlite (dev), PostgreSQL + pgvector (prod) |
+| Rate Limiting | redis 5.2+, hiredis 3.1+ |
+| Retry Logic | tenacity 9.0+ |
+| Serialization | orjson 3.10+ |
+| Observability | Prometheus (custom collector), OpenTelemetry SDK 1.26+, Sentry SDK 2.16+ |
+| Containerization | Docker, Docker Compose (dev + prod profiles) |
+| Reverse Proxy | nginx (TLS 1.2/1.3, HSTS, SSE buffering disabled) |
+| Connection Pool | PgBouncer (transaction mode) |
+| Monitoring | Prometheus 2.x, Grafana (auto-provisioned datasource) |
+| Testing | pytest 8.3+, pytest-asyncio, pytest-cov (449 tests, 90% coverage) |
+| Linting | Ruff 0.8+, mypy 1.13+ |
+
+### B. Package Structure
+
+The `aicos` Python package is organized into ten subpackages, each with a single responsibility:
+
+- **`aicos.core`** — Public SDK entry point (`AI` class), request pipeline orchestrator (`AIGateway`), model router, circuit breaker, database engine factory, configuration loader, structured logger, and telemetry initializer.
+- **`aicos.providers`** — Abstract `BaseProvider` interface and concrete implementations for OpenAI/OpenRouter/NVIDIA (`openai_provider`), Anthropic (`anthropic_provider`), and Google Gemini (`gemini_provider`). Each implementation uses the vendor's official async SDK with tenacity-based exponential backoff (3 attempts).
+- **`aicos.cache`** — `SQLiteCache` (SQLAlchemy-backed persistent store) and `SemanticCache` (two-phase lookup coordinator).
+- **`aicos.memory`** — `EmbeddingEngine` (sentence-transformers or hash fallback), `MemoryStore` (SQLAlchemy ORM + pgvector ANN path), and `MemoryRetriever` (composite scorer and injector).
+- **`aicos.context`** — `ContextCompressor` (TF-IDF extractive, code-preserving), `HistoryManager` (token budget + LITM trigger), and `ConversationSummarizer` (LLM-based abstractive summary).
+- **`aicos.analytics`** — `CostTracker` (per-request DB-backed recording) and `MetricsCollector` (Prometheus-compatible counters and latency histograms).
+- **`aicos.auth`** — `APIKeyStore` (SHA-256-hashed per-user keys with scopes, shown plaintext exactly once).
+- **`aicos.api`** — FastAPI application factory (`create_app`), all HTTP endpoints, `RequestIDMiddleware` (X-Request-ID propagation via ContextVar), and `RateLimitMiddleware` (Redis sliding window with in-process fallback).
+- **`aicos.agents`** — `BaseAgent` (ReAct tool-calling loop, max 15 steps), `StartupAgent` (market research, competitive analysis, pricing, branding, financials, GTM strategy), and `CodingAgent` (code generation, review, test generation, architecture planning).
+- **`aicos.cli`** — Typer CLI with commands: `start`, `chat`, `remember`, `forget`, `search`, `stats`, `config`.
+- **`aicos.db`** — Versioned migration runner with PostgreSQL advisory lock for safe concurrent multi-worker startup.
+
+### C. Model Registry
+
+The router maintains a static registry of 11 model specifications covering all supported providers. Each entry records cost per million input/output tokens, average latency, capability flags (vision, tool-calling, streaming), context window size, and tier label (free/cheap/mid/premium).
+
+| Provider | Model ID | Tier | Input $/1M | Context |
+|---|---|---|---|---|
+| OpenAI | gpt-4o-mini | cheap | $0.15 | 128k |
+| OpenAI | gpt-4o | premium | $2.50 | 128k |
+| OpenAI | o1-mini | mid | $3.00 | 128k |
+| Anthropic | claude-haiku-4-5 | cheap | $0.25 | 200k |
+| Anthropic | claude-sonnet-4-6 | mid | $3.00 | 200k |
+| Anthropic | claude-opus-4-8 | premium | $15.00 | 200k |
+| Google | gemini-2.0-flash | cheap | $0.10 | 1M |
+| Google | gemini-1.5-pro | mid | $1.25 | 2M |
+| NVIDIA | llama-3.1-nemotron-ultra-253b | free | $0 | 128k |
+| OpenRouter | (via NVIDIA) | free | $0 | 128k |
+| Ollama | llama3.2, codellama | local | $0 | 128k |
+
+### D. HTTP API
+
+The FastAPI gateway is OpenAI-compatible. All endpoints:
+
+| Method | Path | Function |
 |---|---|---|
-| Cache hit (exact) | < 5 ms | DB indexed |
-| Cache hit (semantic) | < 20 ms | Cosine similarity |
-| Memory search (pgvector) | < 5 ms | IVFFlat ANN index |
-| Memory search (SQLite) | < 50 ms | NumPy scan, < 10k rows |
-| Context compression | < 50 ms | Pure Python, TF-IDF |
-| Gateway overhead | < 30 ms | Excluding LLM latency |
-| Streaming | Real-time | SSE, no buffering |
+| `POST` | `/v1/chat/completions` | Chat completions (streaming + non-streaming, SSE) |
+| `GET` | `/v1/models` | List available models |
+| `POST` | `/v1/memory` | Store a long-term memory |
+| `GET` | `/v1/memory/search` | Semantic memory search |
+| `DELETE` | `/v1/memory/{id}` | Delete memory by ID |
+| `POST` | `/v1/keys` | Create per-user API key (master key required) |
+| `GET` | `/v1/keys` | List active keys |
+| `DELETE` | `/v1/keys/{id}` | Revoke a key |
+| `GET` | `/health` | Deep health check (probes each provider) |
+| `GET` | `/ready` | Kubernetes readiness probe |
+| `GET` | `/live` | Kubernetes liveness probe |
+| `GET` | `/metrics` | Prometheus metrics export |
+| `GET` | `/stats` | JSON cost and performance summary |
+| `GET` | `/dashboard` | Web UI (dark-mode, live metrics) |
+
+### E. Production Deployment
+
+The production Docker Compose stack (`docker-compose.prod.yml`) starts seven services: nginx (TLS termination, HTTP→HTTPS redirect, TLS 1.2/1.3, HSTS), four AI-COS Uvicorn workers (4 workers each), PgBouncer (transaction-mode connection pooling, reducing 160 app connections to ~20 PostgreSQL connections), PostgreSQL 16 with the pgvector extension, Redis 7 (distributed rate limiting), Prometheus (metrics scraping from `/metrics`), and Grafana (auto-provisioned with Prometheus datasource). Kubernetes deployments use `/ready` as `readinessProbe` and `/live` as `livenessProbe`. API keys may be supplied as Docker Swarm/Compose secrets (read from `/run/secrets/`); environment variables always take precedence.
+
+### F. Database and Migrations
+
+All persistent state (cache entries, memory items, cost records, API keys) is stored in SQLAlchemy ORM models. A versioned migration runner (`aicos.db.migrations`) tracks applied migrations in a `schema_migrations` table and uses a PostgreSQL advisory lock (lock ID `8_888_999`) to serialize concurrent worker startup. Migration `m001` creates all base tables. Migration `m002` installs the pgvector extension and creates an IVFFlat cosine-distance index on the memory embedding column. SQLite uses WAL mode with `synchronous=NORMAL` and a 5-second busy timeout.
 
 ---
 
-## Development
+## V. Conclusion
 
-```bash
-git clone https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-
-cd AI-COS-AI-Context-Operating-System-
-pip install -e ".[dev]"
-
-# Run tests
-pytest tests/ -v --cov=aicos
-
-# Lint
-ruff check aicos/
-
-# Type check
-mypy aicos/
-```
-
-### Project Structure
-
-```
-aicos/
-├── aicos/
-│   ├── api/
-│   │   ├── middleware.py      # RequestIDMiddleware — X-Request-ID tracing
-│   │   ├── rate_limiter.py    # RateLimitMiddleware — Redis + in-process sliding window
-│   │   └── routes.py          # FastAPI app factory, all endpoints
-│   ├── agents/
-│   │   ├── base_agent.py      # Tool-calling agent base class
-│   │   ├── startup_agent.py   # Market research, pricing, branding, financials
-│   │   └── coding_agent.py    # Code gen, review, test gen, architecture
-│   ├── analytics/
-│   │   ├── cost_tracker.py    # Per-request cost + token tracking, DB-backed
-│   │   └── metrics.py         # Prometheus metrics (latency histograms, counters)
-│   ├── auth/
-│   │   └── api_keys.py        # SHA-256-hashed per-user API key store
-│   ├── cache/
-│   │   ├── semantic_cache.py  # Cosine similarity cache (pgvector or NumPy)
-│   │   └── sqlite_cache.py    # SQLAlchemy-backed cache store
-│   ├── cli/
-│   │   └── main.py            # Typer CLI (start, chat, remember, search, stats, config)
-│   ├── context/
-│   │   ├── compressor.py      # TF-IDF extractive compression
-│   │   ├── history_manager.py # Token budget management + LITM trigger
-│   │   └── summarizer.py      # LLM-based conversation summariser
-│   ├── core/
-│   │   ├── ai.py              # AI public interface (SDK entry point)
-│   │   ├── circuit_breaker.py # CLOSED/OPEN/HALF_OPEN per-provider state machine
-│   │   ├── config.py          # Pydantic-settings config with Docker secrets loader
-│   │   ├── database.py        # Engine factory (SQLite WAL + PostgreSQL asyncpg)
-│   │   ├── gateway.py         # Pipeline orchestrator (process + stream)
-│   │   ├── logging.py         # JSON + colour formatters, ContextVar request ID
-│   │   ├── router.py          # Task classifier + model selector
-│   │   └── telemetry.py       # OpenTelemetry + Sentry initialisation
-│   ├── db/
-│   │   └── migrations.py      # Versioned migration runner + advisory lock
-│   ├── memory/
-│   │   ├── embeddings.py      # EmbeddingEngine (sentence-transformers or hash)
-│   │   ├── memory_store.py    # SQLAlchemy store with pgvector ANN search path
-│   │   └── retrieval.py       # Composite scorer, top-K retriever
-│   └── providers/
-│       ├── openai_provider.py  # OpenAI + OpenRouter + NVIDIA
-│       ├── anthropic_provider.py
-│       └── gemini_provider.py
-├── docker-compose.yml          # Dev: single AI-COS + SQLite
-├── docker-compose.prod.yml     # Prod: nginx + PgBouncer + PostgreSQL + Redis + Prometheus + Grafana
-├── nginx/nginx.conf            # TLS termination config
-├── monitoring/
-│   ├── prometheus.yml          # Scrape config for aicos /metrics
-│   └── grafana/provisioning/   # Auto-provisioned Prometheus datasource
-└── tests/                      # 449 tests, 90% coverage
-```
+AI-COS demonstrates that the cross-cutting infrastructure concerns of LLM application development — model routing, semantic caching, persistent memory, context window management, cost tracking, fault isolation, and observability — can be encapsulated in a single cohesive middleware layer. The layered pipeline design allows each concern to be developed, tested, and configured independently while composing cleanly at runtime. The OpenAI-compatible HTTP interface ensures that the system integrates with any existing LLM client library without code changes. The dual SQLite/PostgreSQL backend architecture provides a zero-configuration path for development and a horizontally scalable path for production with no application-level changes required. At version 0.5.0, the system achieves 90% test coverage across 449 tests, supports six provider families covering free through premium model tiers, and ships with a complete production infrastructure stack.
 
 ---
 
-## Supported Providers
+## VI. Future Scope
 
-| Provider | Auth | Models | Notes |
-|---|---|---|---|
-| **OpenAI** | `OPENAI_API_KEY` | gpt-4o, gpt-4o-mini, o1-mini | Direct API |
-| **Anthropic** | `ANTHROPIC_API_KEY` | claude-opus-4-8, claude-sonnet-4-6, claude-haiku-4-5 | Direct API |
-| **Google** | `GEMINI_API_KEY` | gemini-2.0-flash, gemini-1.5-pro | Direct API |
-| **NVIDIA** | `NVIDIA_API_KEY` | llama-3.1-nemotron-ultra-253b | Free tier available |
-| **OpenRouter** | `OPENROUTER_API_KEY` | 100+ models incl. free Nemotron | Unified API |
-| **Ollama** | none | Any local model | `AICOS_OLLAMA_ENABLED=true` |
+The following enhancements are planned or under investigation based on the current architecture:
 
----
+**Streaming memory updates.** The current memory injection is computed before the LLM call. Future work will explore updating memory in real time as streaming tokens arrive, enabling higher-frequency memory capture without blocking response delivery.
 
-## Contributing
+**Multi-modal caching.** The semantic cache currently operates on text. Extending cache keys and similarity computation to cover image, audio, and document inputs would support multi-modal models (GPT-4o vision, Gemini 1.5 Pro) with equivalent cache efficiency.
 
-1. Fork the repo
-2. Create a branch: `git checkout -b feat/my-feature`
-3. Write tests for your changes
-4. Run: `pytest tests/ && ruff check aicos/ && mypy aicos/`
-5. Submit a PR
+**Adaptive compression threshold.** The TF-IDF compression ratio is currently fixed. A learned policy that adjusts aggressiveness based on observed model performance degradation would optimize the cost-quality trade-off per task type.
 
----
+**HNSW indexing.** pgvector supports Hierarchical Navigable Small World (HNSW) indexing in addition to IVFFlat. Migrating the memory and cache indexes to HNSW would improve recall at high query rates and large dataset sizes.
 
-## License
+**Agent orchestration layer.** The current `BaseAgent` implements a single-agent ReAct loop. A multi-agent orchestration layer would enable task decomposition, parallel sub-agent execution, and inter-agent communication, which is required for complex long-horizon tasks.
 
-MIT — see [LICENSE](LICENSE) for details.
+**Fine-tuned task classifier.** The current embedding classifier uses zero-shot prototype centroids. Training a lightweight fine-tuned classifier on labeled LLM task data would improve routing accuracy, particularly for ambiguous prompts at task-type boundaries.
+
+**Cost prediction before routing.** Adding a pre-call cost estimate to the routing decision would allow hard per-request and per-session cost caps, improving budget predictability for multi-tenant deployments.
+
+**Streaming rate-limit accounting.** The current rate limiter counts requests. Counting consumed tokens per minute (TPM) in addition to requests per minute (RPM) would allow finer-grained budget enforcement aligned with provider billing models.
 
 ---
 
-*Built to be the infrastructure layer that every AI application deserves.*
+## References
+
+[1] OpenAI, "OpenAI API Reference — Chat Completions," OpenAI Platform Documentation, 2024. [Online]. Available: https://platform.openai.com/docs/api-reference/chat
+
+[2] BerriAI, "LiteLLM: Call all LLM APIs using the OpenAI format," GitHub Repository, 2024. [Online]. Available: https://github.com/BerriAI/litellm
+
+[3] Zhuang, S. et al., "GPTCache: A Data Store for Efficient LLM Responses," in *Proc. ACL 2023 Workshop on Retrieval-Augmented Models*, 2023.
+
+[4] Lewis, P. et al., "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks," in *Advances in Neural Information Processing Systems (NeurIPS)*, vol. 33, pp. 9459–9474, 2020.
+
+[5] Reimers, N. and Gurevych, I., "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks," in *Proc. Conference on Empirical Methods in Natural Language Processing (EMNLP)*, pp. 3982–3992, 2019.
+
+[6] Liu, N. F. et al., "Lost in the Middle: How Language Models Use Long Contexts," *Transactions of the Association for Computational Linguistics*, vol. 12, pp. 157–173, 2024.
+
+[7] pgvector Contributors, "pgvector: Open-source vector similarity search for Postgres," GitHub Repository, 2023. [Online]. Available: https://github.com/pgvector/pgvector
+
+[8] Ramírez, S., "FastAPI: Modern, fast web framework for building APIs with Python," GitHub Repository, 2024. [Online]. Available: https://github.com/tiangolo/fastapi
+
+[9] SQLAlchemy Contributors, "SQLAlchemy — The Database Toolkit for Python," Version 2.0, 2024. [Online]. Available: https://www.sqlalchemy.org/
+
+[10] Jeffery Morgan, "Ollama: Get up and running with large language models locally," GitHub Repository, 2024. [Online]. Available: https://github.com/ollama/ollama
+
+[11] Prometheus Authors, "Prometheus: Monitoring System and Time Series Database," Cloud Native Computing Foundation, 2024. [Online]. Available: https://prometheus.io/
+
+[12] M. Fowler, "CircuitBreaker," martinfowler.com, 2014. [Online]. Available: https://martinfowler.com/bliki/CircuitBreaker.html
+
+[13] Longa, F., "Tenacity: Retrying library for Python," GitHub Repository, 2024. [Online]. Available: https://github.com/jd/tenacity
+
+[14] Anthropic, "Anthropic API Reference," Anthropic Documentation, 2024. [Online]. Available: https://docs.anthropic.com/
+
+[15] Google, "Gemini API Reference," Google AI for Developers Documentation, 2024. [Online]. Available: https://ai.google.dev/api/
+
+[16] OpenRouter, "OpenRouter: A unified interface for LLMs," OpenRouter Documentation, 2024. [Online]. Available: https://openrouter.ai/docs
+
+[17] Bird, S., Klein, E. and Loper, E., *Natural Language Processing with Python*, O'Reilly Media, 2009. (TF-IDF foundations used in context compressor.)
+
+[18] Devlin, J. et al., "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding," in *Proc. NAACL-HLT*, pp. 4171–4186, 2019. (Underlying architecture of sentence-transformers embeddings.)
