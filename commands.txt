@@ -1,0 +1,413 @@
+AI-COS Command Reference
+========================
+Version 0.5.0 | Python 3.11+ | MIT License
+
+All commands assume the project root (AI-COS-AI-Context-Operating-System-/) as the
+working directory unless noted otherwise.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. SETUP / INSTALLATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# --- Option A: Install from PyPI ---
+
+pip install aicos
+    # Installs core package with all required dependencies.
+
+pip install "aicos[postgres]"
+    # Adds asyncpg for PostgreSQL async support.
+
+pip install "aicos[postgres,pgvector]"
+    # Adds asyncpg + pgvector for PostgreSQL vector similarity search.
+
+pip install "aicos[redis]"
+    # Adds redis + hiredis for distributed rate limiting across workers.
+
+pip install "aicos[embeddings]"
+    # Adds sentence-transformers for high-quality semantic embeddings.
+    # Required when using pgvector with embedding dimension 384.
+
+pip install "aicos[otel]"
+    # Adds OpenTelemetry SDK for distributed tracing (OTLP gRPC export).
+
+pip install "aicos[sentry]"
+    # Adds Sentry SDK for error tracking.
+
+pip install "aicos[all]"
+    # Installs every optional dependency (postgres, pgvector, redis,
+    # vector, embeddings, otel, sentry, and dev tools).
+
+
+# --- Option B: Clone and install for development ---
+
+git clone https://github.com/Akshadtech17/AI-COS-AI-Context-Operating-System-
+    # Clone the repository.
+
+cd AI-COS-AI-Context-Operating-System-
+    # Enter the project directory.
+
+pip install -e ".[dev]"
+    # Install in editable mode with development dependencies:
+    # pytest, pytest-asyncio, pytest-cov, pytest-mock, ruff, mypy, pre-commit.
+
+pip install -e ".[all]"
+    # Install in editable mode with all optional + dev dependencies.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. ENVIRONMENT / CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cp .env.example .env
+    # Create your local environment file from the template.
+    # Edit .env and add at least one LLM provider API key.
+
+# Minimum required configuration (add to .env):
+#
+#   OPENROUTER_API_KEY=sk-or-...      # 100+ models, free tier — recommended
+#   OPENAI_API_KEY=sk-...             # OpenAI direct
+#   ANTHROPIC_API_KEY=sk-ant-...      # Anthropic Claude
+#   GEMINI_API_KEY=...                # Google Gemini
+#   NVIDIA_API_KEY=nvapi-...          # NVIDIA Nemotron (direct)
+
+# Key optional settings (add to .env as needed):
+#
+#   AICOS_ROUTER_STRATEGY=auto        # auto | cheapest | fastest | best
+#   AICOS_CACHE_ENABLED=true
+#   AICOS_MEMORY_ENABLED=true
+#   AICOS_CONTEXT_COMPRESSION_ENABLED=true
+#   AICOS_GATEWAY_PORT=4000
+#   AICOS_LOG_JSON=false              # true for structured JSON logs in prod
+#   AICOS_RATE_LIMIT_RPM=60
+#   DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/aicos
+#   AICOS_REDIS_URL=redis://localhost:6379/0
+#   AICOS_OTEL_ENDPOINT=http://jaeger:4317
+#   AICOS_SENTRY_DSN=https://...@sentry.io/...
+
+aicos config
+    # Print the fully resolved configuration with secrets masked.
+    # Useful to verify which API keys are detected and which settings are active.
+
+pre-commit install
+    # Install git pre-commit hooks (ruff + mypy run on every commit).
+    # Requires: pip install -e ".[dev]"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. RUNNING THE PROJECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# --- Gateway server ---
+
+aicos start
+    # Start the HTTP gateway on the default host (0.0.0.0) and port (4000).
+    # Opens: http://localhost:4000/dashboard
+
+aicos start --port 8080
+    # Start on a custom port.
+
+aicos start --host 127.0.0.1 --port 4000
+    # Bind to localhost only (no external access).
+
+aicos start --workers 4
+    # Start with 4 Uvicorn worker processes.
+
+aicos start --reload
+    # Enable hot-reload for development (code changes restart workers automatically).
+
+aicos start --verbose
+    # Enable DEBUG-level logging output.
+
+
+# --- Interactive and one-shot chat ---
+
+aicos chat
+    # Open an interactive REPL chat session.
+    # In-session slash commands:
+    #   /help   — show available commands
+    #   /clear  — reset conversation history
+    #   /stats  — show session cost and metrics
+    #   /model <model-id>  — switch model mid-session
+
+aicos chat "What is machine learning?"
+    # One-shot chat: send a single message and print the response.
+
+aicos chat "Explain async/await" --model gpt-4o
+    # Override automatic model routing and use a specific model.
+
+aicos chat "Write a haiku" --system "You are a poet." --stream
+    # With a system prompt and streaming output (tokens print as they arrive).
+
+aicos chat "Hello" --no-stream
+    # Disable streaming; wait for the full response before printing.
+
+
+# --- Memory management ---
+
+aicos remember "User prefers Python over JavaScript"
+    # Store a memory that will be automatically injected into future requests.
+
+aicos remember "Project uses PostgreSQL 16 and Redis 7" --tags "architecture,infra"
+    # Store a memory with comma-separated tags for filtered retrieval.
+
+aicos search "Python preferences"
+    # Semantic search over stored memories; prints a table of results.
+
+aicos search "database setup" --top-k 10
+    # Return up to 10 matching memories (default: 5).
+
+aicos search "caching" --threshold 0.5
+    # Use a lower similarity threshold to broaden results (default: 0.3).
+
+aicos forget 42
+    # Delete the memory with ID 42. IDs are shown in search results.
+
+
+# --- Statistics ---
+
+aicos stats
+    # Print session cost summary: total cost, tokens, requests, cache hit rate,
+    # average latency.
+
+
+# --- Python SDK usage (in application code) ---
+
+# Basic chat:
+#   from aicos import AI
+#   ai = AI()
+#   print(ai.chat("Hello!"))
+
+# Async chat:
+#   import asyncio
+#   from aicos import AI
+#   async def main():
+#       ai = AI()
+#       response = await ai.achat("Hello!")
+#   asyncio.run(main())
+
+# Streaming:
+#   import asyncio
+#   from aicos import AI
+#   async def main():
+#       ai = AI()
+#       async for token in ai.astream("Write a story"):
+#           print(token, end="", flush=True)
+
+# OpenAI-compatible client (drop-in):
+#   import openai
+#   client = openai.OpenAI(base_url="http://localhost:4000/v1", api_key="none")
+#   resp = client.chat.completions.create(
+#       model="auto",
+#       messages=[{"role": "user", "content": "Hello"}]
+#   )
+
+# HTTP API (curl):
+curl http://localhost:4000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "auto", "messages": [{"role": "user", "content": "Hello"}]}'
+    # Send a chat request to the running gateway.
+
+curl http://localhost:4000/health
+    # Deep health check — probes all configured providers (may take ~5 s).
+
+curl http://localhost:4000/ready
+    # Kubernetes readiness probe — returns 200 when ready, 503 during startup.
+
+curl http://localhost:4000/live
+    # Kubernetes liveness probe — always returns 200 if the process is running.
+
+curl http://localhost:4000/stats
+    # JSON summary of requests, tokens, cost, cache hit rate, and latency.
+
+curl http://localhost:4000/metrics
+    # Prometheus text-format metrics (scrape this endpoint from prometheus.yml).
+
+
+# --- API key management (requires AICOS_GATEWAY_API_KEY set as master key) ---
+
+curl -X POST http://localhost:4000/v1/keys \
+  -H "Authorization: Bearer $MASTER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-app", "scopes": ["chat", "memory"]}'
+    # Create a new per-user API key. Plaintext key is returned once — save it.
+
+curl http://localhost:4000/v1/keys \
+  -H "Authorization: Bearer $MASTER_KEY"
+    # List all active keys (shows prefix, scopes, last-used; never plaintext).
+
+curl -X DELETE http://localhost:4000/v1/keys/1 \
+  -H "Authorization: Bearer $MASTER_KEY"
+    # Revoke key with ID 1 immediately.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. BUILDING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# --- Python distribution build ---
+
+pip install build
+    # Install the Python build frontend (if not already installed).
+
+python -m build
+    # Build source distribution (.tar.gz) and wheel (.whl) into dist/.
+    # These are the artifacts uploaded to PyPI.
+
+# --- Docker image build ---
+
+docker build -t aicos:latest .
+    # Build the single-container Docker image using Dockerfile.
+    # Base image: python:3.11-slim. Installs aicos[all].
+
+docker build -t aicos:0.5.0 --build-arg VERSION=0.5.0 .
+    # Build with a specific version tag.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+pytest tests/
+    # Run the full test suite (449 tests).
+    # Coverage is collected automatically (configured in pyproject.toml).
+    # Fails if coverage drops below 70%.
+
+pytest tests/ -v
+    # Verbose output — prints each test name and PASS/FAIL status.
+
+pytest tests/ -v --cov=aicos
+    # Run with explicit coverage for the aicos package.
+
+pytest tests/ -v --cov=aicos --cov-report=html
+    # Generate an HTML coverage report in htmlcov/ for browser inspection.
+
+pytest tests/test_cache.py
+    # Run only the cache tests.
+
+pytest tests/test_circuit_breaker.py -v
+    # Run only the circuit breaker tests with verbose output.
+
+pytest tests/ -k "memory"
+    # Run all tests whose name contains "memory".
+
+pytest tests/ -x
+    # Stop after the first failure (fast feedback during development).
+
+pytest tests/ --tb=short
+    # Show short tracebacks on failure (default is long).
+
+# --- Linting ---
+
+ruff check aicos/
+    # Run Ruff linter over the aicos package.
+    # Checks: pycodestyle (E/W), pyflakes (F), isort (I), pep8-naming (N), pyupgrade (UP).
+
+ruff check aicos/ --fix
+    # Auto-fix all fixable lint errors in place.
+
+ruff format aicos/
+    # Auto-format code (replaces Black; enforces 100-char line length).
+
+# --- Type checking ---
+
+mypy aicos/
+    # Run mypy in strict mode over the aicos package.
+    # Configured in pyproject.toml: python_version=3.11, strict=true.
+
+# --- Run all quality checks together ---
+
+ruff check aicos/ && mypy aicos/ && pytest tests/
+    # Full quality gate: lint → type check → tests.
+    # All three must pass before submitting a pull request.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# --- Development / single-server (SQLite, 1 worker) ---
+
+cp .env.example .env          # fill in at least one API key
+docker compose up
+    # Starts a single aicos container with SQLite storage.
+    # Dashboard: http://localhost:4000/dashboard
+    # API:       http://localhost:4000/v1/chat/completions
+
+docker compose up -d
+    # Start in detached (background) mode.
+
+docker compose down
+    # Stop and remove containers (data volume is preserved).
+
+docker compose logs -f
+    # Follow logs from the running container.
+
+
+# --- Production (nginx + 4 workers + PostgreSQL + PgBouncer + Redis + Prometheus + Grafana) ---
+
+cp .env.example .env
+# Edit .env and set:
+#   POSTGRES_PASSWORD=<strong-password>
+#   GRAFANA_PASSWORD=<strong-password>
+#   AICOS_GATEWAY_API_KEY=<master-key>
+#   ... plus all provider API keys
+
+docker compose -f docker-compose.prod.yml up -d
+    # Start the full production stack:
+    #   - nginx on ports 80 (→HTTPS redirect) and 443 (TLS)
+    #   - 4 AI-COS workers behind nginx
+    #   - PgBouncer (transaction-mode connection pooler)
+    #   - PostgreSQL 16 + pgvector extension
+    #   - Redis 7 (distributed rate limiting)
+    #   - Prometheus (metrics scraping, port 9090)
+    #   - Grafana (dashboards, port 3000, auto-provisioned)
+
+docker compose -f docker-compose.prod.yml down
+    # Stop the production stack (data volumes preserved).
+
+docker compose -f docker-compose.prod.yml logs -f aicos
+    # Follow logs from the aicos workers only.
+
+docker compose -f docker-compose.prod.yml ps
+    # Show status of all services in the production stack.
+
+docker compose -f docker-compose.prod.yml restart aicos
+    # Restart the aicos workers without touching the database or Redis.
+
+# --- TLS / Let's Encrypt (production) ---
+# Edit nginx/nginx.conf:
+#   ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+#   ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+# Then uncomment the certificate volume mount in docker-compose.prod.yml.
+
+# --- Database connection pool tuning (PgBouncer, production) ---
+# Add to .env to avoid PostgreSQL connection exhaustion with 4 workers:
+#   AICOS_DB_POOL_SIZE=2
+#   AICOS_DB_MAX_OVERFLOW=3
+# This yields: 4 workers × 4 stores × 5 conns = 80 app→PgBouncer → ~20 real PG conns.
+
+# --- Kubernetes health probes ---
+# Use /ready as readinessProbe and /live as livenessProbe in your pod spec:
+#
+#   readinessProbe:
+#     httpGet:
+#       path: /ready
+#       port: 4000
+#     initialDelaySeconds: 10
+#     periodSeconds: 5
+#     failureThreshold: 3
+#
+#   livenessProbe:
+#     httpGet:
+#       path: /live
+#       port: 4000
+#     initialDelaySeconds: 5
+#     periodSeconds: 10
+
+# --- PyPI publish (maintainers only, triggered by GitHub Actions on tag push) ---
+
+git tag v0.5.0
+git push origin v0.5.0
+    # Pushing a version tag triggers the publish.yml GitHub Actions workflow,
+    # which builds the distribution and uploads to PyPI via trusted publishing
+    # (no API token required in the workflow — uses OIDC).

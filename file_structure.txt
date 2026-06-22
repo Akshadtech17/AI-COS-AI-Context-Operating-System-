@@ -1,0 +1,116 @@
+AI-COS Project Directory and File Structure
+============================================
+Version 0.5.0 | Python 3.11+ | MIT License
+
+aicos/                                    # Repository root
+│
+├── aicos/                                # Main Python package (pip-installable as "aicos")
+│   │
+│   ├── __init__.py                       # Package init; re-exports AI class as top-level import
+│   │
+│   ├── core/                             # Central request pipeline and configuration
+│   │   ├── __init__.py
+│   │   ├── ai.py                         # AI class — public SDK entry point (chat, remember, search, stream)
+│   │   ├── gateway.py                    # AIGateway — orchestrates the full request pipeline (process/stream)
+│   │   ├── router.py                     # ModelRouter + EmbeddingTaskClassifier — routes requests to optimal model
+│   │   ├── config.py                     # AICOSConfig — pydantic-settings loader with Docker secrets support
+│   │   ├── database.py                   # Engine factory — SQLite (WAL) or PostgreSQL (asyncpg) per environment
+│   │   ├── circuit_breaker.py            # CircuitBreaker + CircuitBreakerRegistry — per-provider fault isolation
+│   │   ├── logging.py                    # Structured logger — JSON (prod) or colour text (dev), ContextVar tracing
+│   │   └── telemetry.py                  # OpenTelemetry (OTLP gRPC) and Sentry initialization
+│   │
+│   ├── providers/                        # LLM provider adapter layer
+│   │   ├── __init__.py
+│   │   ├── base.py                       # BaseProvider ABC — complete(), stream(), is_available() interface
+│   │   ├── openai_provider.py            # OpenAI, OpenRouter, and NVIDIA endpoints (openai SDK, tenacity retry)
+│   │   ├── anthropic_provider.py         # Anthropic Claude models (anthropic SDK, tenacity retry)
+│   │   └── gemini_provider.py            # Google Gemini models (google-generativeai SDK, async wrapper)
+│   │
+│   ├── cache/                            # Semantic response caching
+│   │   ├── __init__.py
+│   │   ├── sqlite_cache.py               # SQLiteCache — SQLAlchemy ORM store with SHA-256 keying and TTL
+│   │   └── semantic_cache.py             # SemanticCache — two-phase lookup (exact hash → cosine similarity scan)
+│   │
+│   ├── memory/                           # Long-term conversational memory
+│   │   ├── __init__.py
+│   │   ├── embeddings.py                 # EmbeddingEngine — sentence-transformers or 512-d hash fallback
+│   │   ├── memory_store.py               # MemoryStore — SQLAlchemy ORM + pgvector ANN index (PostgreSQL path)
+│   │   └── retrieval.py                  # MemoryRetriever — composite scoring (cosine × recency × frequency)
+│   │
+│   ├── context/                          # Token budget management and compression
+│   │   ├── __init__.py
+│   │   ├── compressor.py                 # ContextCompressor — TF-IDF extractive summarization, preserves code/JSON
+│   │   ├── history_manager.py            # HistoryManager — LITM solver, token-budget enforcement, recap injection
+│   │   └── summarizer.py                 # ConversationSummarizer — LLM-based abstractive summary of early turns
+│   │
+│   ├── analytics/                        # Cost and performance instrumentation
+│   │   ├── __init__.py
+│   │   ├── cost_tracker.py               # CostTracker — per-request cost/token DB recording (fire-and-forget)
+│   │   └── metrics.py                    # MetricsCollector — Prometheus-compatible counters and latency histograms
+│   │
+│   ├── auth/                             # API key management
+│   │   ├── __init__.py
+│   │   └── api_keys.py                   # APIKeyStore — SHA-256-hashed keys with scopes; plaintext shown once
+│   │
+│   ├── api/                              # HTTP gateway (FastAPI)
+│   │   ├── __init__.py
+│   │   ├── routes.py                     # FastAPI app factory — all /v1/*, /health, /metrics, /dashboard endpoints
+│   │   ├── middleware.py                 # RequestIDMiddleware — X-Request-ID propagation via ContextVar
+│   │   └── rate_limiter.py              # RateLimitMiddleware — Redis sliding window + in-process fallback
+│   │
+│   ├── agents/                           # Tool-calling agent framework
+│   │   ├── __init__.py
+│   │   ├── base_agent.py                 # BaseAgent — ReAct loop (max 15 steps), Tool dataclass, AgentResult
+│   │   ├── startup_agent.py              # StartupAgent — market research, competitive analysis, pricing, branding
+│   │   └── coding_agent.py              # CodingAgent — code generation, review, test generation, architecture
+│   │
+│   ├── cli/                              # Command-line interface
+│   │   ├── __init__.py
+│   │   └── main.py                       # Typer CLI — start, chat, remember, forget, search, stats, config commands
+│   │
+│   └── db/                               # Database migrations
+│       ├── __init__.py
+│       └── migrations.py                 # Versioned migration runner with PostgreSQL advisory lock
+│
+├── tests/                                # Test suite — 449 tests, 90% coverage
+│   ├── __init__.py
+│   ├── conftest.py                       # Shared pytest fixtures (config, mock provider, test helpers)
+│   ├── test_ai.py                        # SDK integration tests (chat, memory, streaming, cost summary)
+│   ├── test_gateway.py                   # Pipeline tests (routing, caching, compression, failover)
+│   ├── test_providers.py                 # Provider unit tests (all four providers)
+│   ├── test_cache.py                     # Cache tests (exact match, semantic match, TTL, edge cases)
+│   ├── test_memory.py                    # Memory store tests (store, search, forget, composite scoring)
+│   ├── test_context.py                   # Compression and LITM solver tests
+│   ├── test_circuit_breaker.py           # Circuit breaker state machine tests (15 tests)
+│   ├── test_rate_limiter.py              # Rate limiter tests — Redis mode and in-process fallback (11 tests)
+│   ├── test_router.py                    # Task classification and model selection tests
+│   ├── test_agents.py                    # StartupAgent and CodingAgent integration tests
+│   ├── test_routes.py                    # HTTP API endpoint tests (FastAPI TestClient)
+│   ├── test_metrics.py                   # Prometheus metrics collection tests
+│   └── test_cli.py                       # CLI command tests (Typer CliRunner)
+│
+├── monitoring/                           # Observability configuration
+│   ├── prometheus.yml                    # Prometheus scrape config (targets aicos /metrics)
+│   └── grafana/
+│       └── provisioning/
+│           └── datasources/
+│               └── prometheus.yml        # Grafana auto-provisioned Prometheus datasource definition
+│
+├── nginx/
+│   └── nginx.conf                        # nginx reverse-proxy config — TLS 1.2/1.3, HSTS, SSE passthrough
+│
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                        # GitHub Actions CI — lint (ruff), type-check (mypy), pytest on Python 3.11/3.12
+│       └── publish.yml                   # GitHub Actions CD — PyPI trusted publishing workflow (on tag push)
+│
+├── .env.example                          # Template for environment variables (API keys, settings, database URLs)
+├── pyproject.toml                        # Package metadata, dependencies, optional extras, pytest/ruff/mypy config
+├── Dockerfile                            # Single-container image (python:3.11-slim, installs aicos[all])
+├── docker-compose.yml                    # Development stack — single aicos worker, SQLite, SQLite volume
+├── docker-compose.prod.yml               # Production stack — nginx + 4 workers + PgBouncer + PostgreSQL + Redis + Prometheus + Grafana
+├── CHANGELOG.md                          # Version history (0.1.0 through 0.5.0)
+├── LICENSE                               # MIT License
+├── README.md                             # Project documentation (this file, IEEE format)
+├── file_structure.txt                    # This file — annotated project directory tree
+└── commands.txt                          # All commands for setup, running, testing, and deployment
